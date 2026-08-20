@@ -1,0 +1,3 @@
+# PoC runtime. Keep this tiny: the FPGA port is a few dozen MACs, not a framework.
+numpy>=1.26
+matplotlib>=3.8

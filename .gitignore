@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.env.*
+
+# C# / Visual Studio (2016 trainer, not part of the PoC runtime)
+**/bin/
+**/obj/
+**/.vs/
+*.user
+*.suo
+
+# OS / Office lock files
+Thumbs.db
+Desktop.ini
+.DS_Store
+~$*
+
+# Local Cursor notes (not for reviewers)
+_session/
