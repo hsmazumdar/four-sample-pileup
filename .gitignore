@@ -22,3 +22,8 @@ Desktop.ini
 
 # Local Cursor notes (not for reviewers)
 _session/
+
+# Journal manuscript — keep off GitHub (publisher pre-publication policy)
+ManuscriptDraft.docx
+ManuscriptDraft.docs
+~$*.docx
