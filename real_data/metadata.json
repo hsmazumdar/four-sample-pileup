@@ -1,0 +1,33 @@
+{
+  "dataset_id": "sdd_fe55_12bit_10msps",
+  "title": "SDD + Fe-55 shaped pulses, 12-bit 10 MSPS",
+  "detector": "silicon drift detector",
+  "source": "Fe-55",
+  "adc_bits": 12,
+  "adc_channels": 4096,
+  "sample_rate_hz": 10000000,
+  "sample_period_ns": 100,
+  "peaking_time_us": 1.0,
+  "samples_per_segment": 524288,
+  "n_segments": 61,
+  "live_time_s": 3.1981568,
+  "encoding": "ascii-integers-one-per-line-crlf",
+  "noise_floor_adc": 50,
+  "operator_nominal_amplitude_adc": 1000,
+  "measured_mn_ka_centroid_adc": 1197.4,
+  "measured_mn_kb_centroid_adc": 1316.6,
+  "high_periodic_amp_adc": 3650,
+  "high_periodic_rate_hz": 69.1,
+  "acquired_by": {
+    "name": "Arpit Patel",
+    "role": "Senior Engineer",
+    "affiliation": "Physical Research Laboratory (PRL), Ahmedabad",
+    "email": "arpitp@prl.res.in",
+    "mail_date": "2026-08-21"
+  },
+  "notes": [
+    "Count rate is low; Am-241 pile-up traces were promised later.",
+    "Folder name 'SDD data 10us' is a local label; peaking time is 1 us.",
+    "Original files 1.xls / 2..9 / a..z / aa..zz were renamed to seg001.txt..seg061.txt."
+  ]
+}

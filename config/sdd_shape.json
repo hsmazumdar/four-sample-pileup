@@ -1,0 +1,15 @@
+{
+  "model": "CR-RC^n",
+  "n": 8,
+  "tau_samples": 1.2606,
+  "peaking_samples": 10.0848,
+  "peaking_us": 1.0085,
+  "sample_rate_hz": 10000000,
+  "sample_period_ns": 100,
+  "fit_n_isolated": 2898,
+  "fit_rmse": 0.0305,
+  "noise_sigma_adc": 9.86,
+  "pedestal_adc": 7.1,
+  "source": "Mean isolated Fe-55 pulses from real_data/sdd_fe55 (threshold 200, Δt_prev ≥ 8 µs). Peak-aligned, local baseline subtracted, unit-height. Periodic ~3650 ch pulses excluded.",
+  "note": "Frozen synthesizer shape. Synthetic pile-up uses this kernel, not measured overlaps. Tail of CR-RC^8 is slightly longer than the measured return to baseline (honest residual)."
+}

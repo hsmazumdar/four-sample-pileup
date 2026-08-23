@@ -1,7 +1,10 @@
 # Held-out results (seed 42 protocol)
 
-Synthetic RC-smoothed rectangles. **Not** HPGe/NaI data and **not** a journal
-claim. Reproduce with `python run_poc.py` or `python -m sparse_pileup.report`.
+Synthetic **CR–RC⁸** pulses fitted to isolated Fe-55 SDD traces
+(`config/sdd_shape.json`, fs = 10 MSPS, peaking 1.01 µs, stride 4).
+Pile-up is still **injected in software**. These numbers are not a
+measured pile-up F1 and not HPGe/NaI data. Reproduce with
+`python synthesize_data.py` then `python run_poc.py`.
 
 Test set: n = 1000 events, independent RNG seed `42+2`.
 Peak target = true first-pulse amplitude A1 (4096-channel units).
@@ -11,18 +14,18 @@ Peak target = true first-pulse amplitude A1 (4096-channel units).
 | Metric | Value |
 |--------|------:|
 | Events | 1000 |
-| True pile-up | 122 |
-| Accuracy | 0.969 |
+| True pile-up | 103 |
+| Accuracy | 0.949 |
 | Precision | 1.000 |
-| Recall | 0.746 |
-| F1 | 0.854 |
+| Recall | 0.505 |
+| F1 | 0.671 |
 
 ### Confusion matrix
 
 | | Predicted single | Predicted pile-up |
 |--|--:|--:|
-| True single | 878 | 0 |
-| True pile-up | 31 | 91 |
+| True single | 897 | 0 |
+| True pile-up | 51 | 52 |
 
 Threshold: `pileup_prob >= 0.5`. Machine-readable copy:
 `artifacts/pileup_confusion.csv`.
@@ -31,8 +34,8 @@ Threshold: `pileup_prob >= 0.5`. Machine-readable copy:
 
 | Subset | n | MAE (ch) | RMSE (ch) | Max (ch) |
 |--------|--:|---------:|----------:|---------:|
-| Isolated pulses | 878 | 93.7 | 95.6 | 210.8 |
-| All events (incl. pile-up) | 1000 | 143.5 | 391.8 | 3737.5 |
+| Isolated pulses | 897 | 34.9 | 38.2 | 73.0 |
+| All events (incl. pile-up) | 1000 | 42.3 | 61.0 | 538.6 |
 
 The C# trainer reported ~0.89 channel MAE on **same-set** files against
 **shaped max(waveform)**, isolated pulses only. That is a different target
@@ -42,6 +45,17 @@ Error histogram (rounded |err|): `artifacts/peak_error_hist.csv`.
 
 ## How these numbers were produced
 
-1. `python synthesize_data.py` — 4000/1000/1000 events, seeds 42/43/44.
-2. `python run_poc.py` — train both 4–5–1 heads 40 epochs, η = 0.5.
-3. Evaluate `infer()` on the held-out test CSV / regenerated test seed.
+1. Fit isolated Fe-55 pulses → `config/sdd_shape.json` (CR–RC⁸, τ = 1.2606 samples).
+2. `python synthesize_data.py` — 4000/1000/1000 events, seeds 42/43/44,
+   lines in `config/sdd_fe55_lines.csv`, measured baseline noise.
+3. `python run_poc.py` — train both 4–5–1 heads 40 epochs, η = 0.5.
+4. Evaluate `infer()` on the held-out test seed.
+
+The 2016 C# same-set MAE (~0.89 ch vs shaped max) used a different
+pulse, stride 15, and a different label. Do not compare it to the A1
+columns above.
+
+Versus the previous cartoon synthesizer (3× leaky integrator, stride 15):
+pile-up F1 fell from 0.854 to 0.671 (recall 0.505; precision still 1.000).
+Isolated A1 MAE improved from 93.7 ch to 34.9 ch. Both shifts are
+expected on a 1 µs measured-like pulse. They are still synthetic.

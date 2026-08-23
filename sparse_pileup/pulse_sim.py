@@ -1,23 +1,30 @@
-"""Synthetic shaped pulses. Testbench only — do not synthesise.
+"""Synthetic shaped pulses. Testbench only — do not synthesise to FPGA.
 
-Ports timer1_Tick + Array2ShapeDbl + Get8ChnlGaussianPulses from
-PileupNNBPTrainer.cs. The second piled pulse is drawn from the same MCA
-Gaussian lines as the first (C# used Uniform(0.1, 1) for pulse 2).
+Default engine: unit-height CR–RC^n kernel fitted to isolated Fe-55 SDD
+pulses (config/sdd_shape.json), at fs = 10 MHz, plus measured baseline
+noise. Pile-up is a second kernel at a controlled peak-to-peak gap.
+
+The 2016 WinForms path (rectangle + three leaky integrators) is kept as
+array2shape_dbl / shape_pulse_legacy. It is not used by simulate_pulse.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+import json
 
 import numpy as np
 
 from sparse_pileup.constants import (
     ADC_CHANNELS,
+    CR_RC_N,
+    CR_RC_TAU_SAMPLES,
     GAP_HIGH,
     GAP_LOW,
+    NOISE_SIGMA_CH,
+    PEDESTAL_CH,
     PILEUP_PERIOD,
-    PULSE_WIDTH,
     RC_ALPHA,
     RC_GAIN,
     RC_INNER_STEPS,
@@ -38,8 +45,6 @@ class McaLine:
 
 
 def _gaussian_yy(channels: int = ADC_CHANNELS) -> np.ndarray:
-    # LoadParameters / FillChannelConfig:
-    #   yy[i] = exp(-(i - N/2)^2 / (N^2 * 0.05))
     i = np.arange(channels, dtype=np.float64)
     mid = channels / 2.0
     return np.exp(-((i - mid) ** 2) / (channels * channels * 0.05))
@@ -54,7 +59,7 @@ def build_profile(span: int, channels: int = ADC_CHANNELS) -> np.ndarray:
         idx = int((j + 1) * yk)
         if idx >= channels:
             idx = channels - 1
-        sz = int(1000.0 * yy[idx])  # C# (short)(1000 * yy[...])
+        sz = int(1000.0 * yy[idx])
         if sz < 0:
             sz = 0
         al.extend([j] * sz)
@@ -64,9 +69,7 @@ def build_profile(span: int, channels: int = ADC_CHANNELS) -> np.ndarray:
 
 
 def load_mca_lines(csv_path: Path) -> list[McaLine]:
-    """config/mca_lines.csv — same layout as configMca.csv."""
     text = Path(csv_path).read_text(encoding="utf-8").strip().splitlines()
-    # skip header; row 1 is MaxVals
     lines: list[McaLine] = []
     for raw in text[2:]:
         parts = [p.strip() for p in raw.split(",")]
@@ -88,7 +91,7 @@ def load_mca_lines(csv_path: Path) -> list[McaLine]:
 
 
 def draw_amplitude(lines: list[McaLine], rng: np.random.Generator) -> float:
-    """Get8ChnlGaussianPulses: uniform line, then profile offset, /4096."""
+    """Uniform line, then profile offset, /4096."""
     chn = int(rng.integers(0, len(lines)))
     line = lines[chn]
     sel = int(rng.integers(0, len(line.profile)))
@@ -97,8 +100,34 @@ def draw_amplitude(lines: list[McaLine], rng: np.random.Generator) -> float:
     return hgt / float(ADC_CHANNELS)
 
 
+def load_shape_params(path: Path | None = None) -> dict:
+    if path is None:
+        path = Path(__file__).resolve().parents[1] / "config" / "sdd_shape.json"
+    with Path(path).open(encoding="utf-8") as f:
+        return json.load(f)
+
+
+def cr_rc_n_kernel(
+    length: int,
+    peak_at: float,
+    *,
+    n: int = CR_RC_N,
+    tau: float = CR_RC_TAU_SAMPLES,
+) -> np.ndarray:
+    """Unit-height causal CR–RC^n. Peak of (u^n e^{-u}) is at u = n."""
+    t = np.arange(length, dtype=np.float64) - float(peak_at)
+    u = (t + n * tau) / tau
+    y = np.zeros(length, dtype=np.float64)
+    m = u >= 0.0
+    y[m] = (u[m] ** n) * np.exp(-u[m])
+    peak = float(y.max())
+    if peak > 0.0:
+        y /= peak
+    return y
+
+
 def array2shape_dbl(pts: np.ndarray) -> np.ndarray:
-    """Array2ShapeDbl — leaky integrator, 10 inner steps, then *1.1 on the output."""
+    """2016 Array2ShapeDbl — leaky integrator, 10 inner steps, then *1.1."""
     vc = 0.0
     out = np.empty_like(pts, dtype=np.float64)
     for i in range(pts.shape[0]):
@@ -109,7 +138,7 @@ def array2shape_dbl(pts: np.ndarray) -> np.ndarray:
     return out
 
 
-def shape_pulse(rect: np.ndarray) -> np.ndarray:
+def shape_pulse_legacy(rect: np.ndarray) -> np.ndarray:
     y = rect
     for _ in range(RC_PASSES):
         y = array2shape_dbl(y)
@@ -132,12 +161,14 @@ def simulate_pulse(
     *,
     force_pileup: bool | None = None,
 ) -> SimulatedPulse:
-    """One 500-sample record: rectangle(s) then three RC passes."""
-    rect = np.zeros(WAVEFORM_LEN, dtype=np.float64)
-    t_start = START_OFFSET + int(rng.integers(0, START_SPAN))
+    """One record: A1 p(n−t1) [+ A2 p(n−t2)] + pedestal + measured noise.
+
+    p(·) is the fitted CR–RC^n kernel. t_start is the first-pulse *peak*
+    sample. gap is peak-to-peak samples when piled.
+    """
+    t1 = START_OFFSET + int(rng.integers(0, START_SPAN))
     a1 = draw_amplitude(lines, rng)
-    tw = PULSE_WIDTH
-    rect[t_start : t_start + tw] = a1
+    waveform = a1 * cr_rc_n_kernel(WAVEFORM_LEN, t1)
 
     is_pileup = bool(rng.integers(0, PILEUP_PERIOD) == 0)
     if force_pileup is not None:
@@ -148,17 +179,18 @@ def simulate_pulse(
     if is_pileup:
         gap = int(rng.integers(GAP_LOW, GAP_HIGH))
         a2 = draw_amplitude(lines, rng)
-        t2 = t_start + tw + gap
-        t2e = min(WAVEFORM_LEN, t2 + tw)
-        if t2 < WAVEFORM_LEN:
-            rect[t2:t2e] = a2
+        t2 = t1 + gap
+        if 0 <= t2 < WAVEFORM_LEN:
+            waveform = waveform + a2 * cr_rc_n_kernel(WAVEFORM_LEN, t2)
 
-    waveform = shape_pulse(rect)
+    pedestal = PEDESTAL_CH / float(ADC_CHANNELS)
+    noise = rng.normal(0.0, NOISE_SIGMA_CH / float(ADC_CHANNELS), size=WAVEFORM_LEN)
+    waveform = np.clip(waveform + pedestal + noise, 0.0, 1.0)
     return SimulatedPulse(
         waveform=waveform,
         amplitude_first=a1,
         amplitude_second=a2,
         is_pileup=is_pileup,
-        t_start=t_start,
+        t_start=t1,
         gap=gap,
     )

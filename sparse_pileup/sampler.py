@@ -45,7 +45,7 @@ def find_trigger(waveform: np.ndarray, level: float = TRIGGER_LEVEL) -> int | No
 
 
 def extract_frame(waveform: np.ndarray) -> SampleFrame | None:
-    """Four amplitudes at n_trig + k*15, k=0..3. None if no trigger or window overruns."""
+    """Four amplitudes at n_trig + k*SAMPLE_STRIDE. None if no trigger or overrun."""
     trig = find_trigger(waveform)
     if trig is None:
         return None

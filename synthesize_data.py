@@ -3,8 +3,9 @@
 
     python synthesize_data.py
 
-Writes labelled train/val/test CSVs under data/. Engine: sparse_pileup.pulse_sim
-(shaped rectangles + MCA Gaussian lines). Not a real-detector dump.
+Writes labelled train/val/test CSVs under data/. Engine:
+sparse_pileup.pulse_sim (SDD-fitted CR–RC^8 + Fe-55 lines + measured
+noise). Pile-up is still synthetic.
 """
 
 from __future__ import annotations

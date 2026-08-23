@@ -1,7 +1,7 @@
-Held-out report (not a paper claim; synthetic RC-smoothed rectangles)
-  Pile-up  n=1000  (true pile-up 122)
-           acc=0.969  F1=0.854  precision=1.000  recall=0.746
-           tp=91  fp=0  tn=878  fn=31
-  Peak vs A1, isolated  n=878  MAE=93.7 ch  RMSE=95.6 ch  max=210.8 ch
-  Peak vs A1, all events n=1000  MAE=143.5 ch  RMSE=391.8 ch  max=3737.5 ch
+Held-out report (not a paper claim; SDD-fitted CR–RC^8, synthetic pile-up)
+  Pile-up  n=1000  (true pile-up 103)
+           acc=0.949  F1=0.671  precision=1.000  recall=0.505
+           tp=52  fp=0  tn=897  fn=51
+  Peak vs A1, isolated  n=897  MAE=34.9 ch  RMSE=38.2 ch  max=73.0 ch
+  Peak vs A1, all events n=1000  MAE=42.3 ch  RMSE=61.0 ch  max=538.6 ch
   Peak target is true first-pulse amplitude A1, not shaped max(waveform).

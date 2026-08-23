@@ -27,7 +27,12 @@ from sparse_pileup.constants import (  # noqa: E402
 from sparse_pileup.dataset import make_split  # noqa: E402
 from sparse_pileup.dual_head import DualHeadDetector  # noqa: E402
 from sparse_pileup.mlp import SmallMLP, sigmoid  # noqa: E402
-from sparse_pileup.pulse_sim import array2shape_dbl, load_mca_lines, simulate_pulse  # noqa: E402
+from sparse_pileup.pulse_sim import (  # noqa: E402
+    array2shape_dbl,
+    cr_rc_n_kernel,
+    load_mca_lines,
+    simulate_pulse,
+)
 from sparse_pileup.sampler import extract_frame, quantize_4096  # noqa: E402
 
 CSV = ROOT / "config" / "mca_lines.csv"
@@ -48,11 +53,16 @@ class PulseTests(unittest.TestCase):
         self.assertGreater(len(lines[0].profile), 10)
 
     def test_shape_is_causal_and_positive(self) -> None:
+        y = cr_rc_n_kernel(64, peak_at=20)
+        self.assertTrue(np.all(y >= -1e-12))
+        self.assertEqual(int(np.argmax(y)), 20)
+        self.assertAlmostEqual(float(y[20]), 1.0, places=6)
+        self.assertLess(float(y[0]), 0.02)
         rect = np.zeros(64)
         rect[8:8 + PULSE_WIDTH] = 0.5
-        y = array2shape_dbl(rect)
-        self.assertTrue(np.all(y >= -1e-12))
-        self.assertGreater(y[8 + PULSE_WIDTH - 1], y[8])
+        legacy = array2shape_dbl(rect)
+        self.assertTrue(np.all(legacy >= -1e-12))
+        self.assertGreater(legacy[8 + PULSE_WIDTH - 1], legacy[8])
 
     def test_waveform_length(self) -> None:
         lines = load_mca_lines(CSV)
@@ -126,10 +136,32 @@ class DualHeadTests(unittest.TestCase):
         path.unlink(missing_ok=True)
 
     def test_tiny_split(self) -> None:
-        split = make_split(CSV, n_train=8, n_val=4, n_test=4, seed=7)
+        split = make_split(ROOT / "config" / "sdd_fe55_lines.csv", n_train=8, n_val=4, n_test=4, seed=7)
         self.assertEqual(len(split.train), 8)
         self.assertEqual(split.train[0].samples.shape, (4,))
         self.assertTrue(0.0 <= split.train[0].amplitude_first < 1.0)
+
+
+class RealSddTests(unittest.TestCase):
+    def test_manifest_and_one_segment(self) -> None:
+        from sparse_pileup.real_sdd import (
+            SAMPLES_PER_SEGMENT,
+            load_manifest,
+            load_metadata,
+            load_segment,
+        )
+
+        meta = load_metadata(ROOT)
+        self.assertEqual(meta["sample_rate_hz"], 10_000_000)
+        self.assertEqual(meta["n_segments"], 61)
+        segs = load_manifest(ROOT)
+        self.assertEqual(len(segs), 61)
+        self.assertTrue(segs[0].path.is_file())
+        self.assertTrue(str(segs[0].name).endswith(".txt"))
+        x = load_segment(segs[0].path)
+        self.assertEqual(x.size, SAMPLES_PER_SEGMENT)
+        self.assertGreaterEqual(int(x.min()), 0)
+        self.assertLessEqual(int(x.max()), 4095)
 
 
 if __name__ == "__main__":

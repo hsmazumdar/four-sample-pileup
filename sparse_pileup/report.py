@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from sparse_pileup.constants import ADC_CHANNELS, DEFAULT_SEED, N_TEST
+from sparse_pileup.constants import ADC_CHANNELS, DEFAULT_LINES_CSV, DEFAULT_SEED, N_TEST
 from sparse_pileup.dataset import generate_events
 from sparse_pileup.dual_head import DualHeadDetector
 from sparse_pileup.metrics import format_report, peak_metrics, pileup_metrics
@@ -95,8 +95,11 @@ def write_tables(
 
     md = f"""# Held-out results (seed 42 protocol)
 
-Synthetic RC-smoothed rectangles. **Not** HPGe/NaI data and **not** a journal
-claim. Reproduce with `python run_poc.py` or `python -m sparse_pileup.report`.
+Synthetic **CR–RC⁸** pulses fitted to isolated Fe-55 SDD traces
+(`config/sdd_shape.json`, fs = 10 MSPS, peaking 1.01 µs, stride 4).
+Pile-up is still **injected in software**. These numbers are not a
+measured pile-up F1 and not HPGe/NaI data. Reproduce with
+`python synthesize_data.py` then `python run_poc.py`.
 
 Test set: n = {pile.n} events, independent RNG seed `{DEFAULT_SEED}+2`.
 Peak target = true first-pulse amplitude A1 (4096-channel units).
@@ -137,9 +140,15 @@ Error histogram (rounded |err|): `artifacts/peak_error_hist.csv`.
 
 ## How these numbers were produced
 
-1. `python synthesize_data.py` — 4000/1000/1000 events, seeds 42/43/44.
-2. `python run_poc.py` — train both 4–5–1 heads 40 epochs, η = 0.5.
-3. Evaluate `infer()` on the held-out test CSV / regenerated test seed.
+1. Fit isolated Fe-55 pulses → `config/sdd_shape.json` (CR–RC⁸, τ = 1.2606 samples).
+2. `python synthesize_data.py` — 4000/1000/1000 events, seeds 42/43/44,
+   lines in `config/sdd_fe55_lines.csv`, measured baseline noise.
+3. `python run_poc.py` — train both 4–5–1 heads 40 epochs, η = 0.5.
+4. Evaluate `infer()` on the held-out test seed.
+
+The 2016 C# same-set MAE (~0.89 ch vs shaped max) used a different
+pulse, stride 15, and a different label. Do not compare it to the A1
+columns above.
 """
     results_md.write_text(md, encoding="utf-8")
     print(report)
@@ -151,7 +160,7 @@ Error histogram (rounded |err|): `artifacts/peak_error_hist.csv`.
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(description="Rebuild RESULTS.md from frozen weights.")
     p.add_argument("--weights", type=Path, default=ROOT / "weights" / "dual_head.json")
-    p.add_argument("--config", type=Path, default=ROOT / "config" / "mca_lines.csv")
+    p.add_argument("--config", type=Path, default=ROOT / DEFAULT_LINES_CSV)
     p.add_argument("--artifacts", type=Path, default=ROOT / "artifacts")
     p.add_argument("--results", type=Path, default=ROOT / "RESULTS.md")
     p.add_argument("--n-test", type=int, default=N_TEST)

@@ -21,9 +21,12 @@ if str(ROOT) not in sys.path:
 from sparse_pileup.constants import (  # noqa: E402
     ADC_CHANNELS,
     DEFAULT_EPOCHS,
+    DEFAULT_LINES_CSV,
     DEFAULT_SEED,
     N_HIDDEN,
     N_SAMPLES,
+    SAMPLE_STRIDE,
+    WAVEFORM_LEN,
 )
 from sparse_pileup.dataset import make_split  # noqa: E402
 from sparse_pileup.dual_head import DualHeadDetector  # noqa: E402
@@ -73,8 +76,8 @@ def maybe_plot(split, model: DualHeadDetector, out: Path) -> None:
             f"{title}  true A1={row.amplitude_first*4096:.0f} ch\n"
             f"net: pileup={pred.pileup_prob:.2f}  peak={pred.peak_channel:.0f} ch"
         )
-        ax.set_xlabel("sample index")
-        ax.set_xlim(0, 160)
+        ax.set_xlabel("sample index (10 MSPS)")
+        ax.set_xlim(0, WAVEFORM_LEN)
     axes[0].set_ylabel("amplitude (full scale)")
     axes[0].legend(loc="upper right", fontsize=8)
     fig.tight_layout()
@@ -89,12 +92,13 @@ def main() -> None:
     weights.mkdir(exist_ok=True)
 
     print("Four-sample pile-up / peak dual-head PoC")
+    print("  SDD-fitted CR–RC^8, 10 MSPS, stride", SAMPLE_STRIDE)
     print("  4 post-trigger samples -> two parallel 4-5-1 MLPs")
     print(f"  inputs={N_SAMPLES}  hidden={N_HIDDEN}  "
           f"(31 weights x 2 heads = 62 parameters)")
     print()
 
-    csv_path = ROOT / "config" / "mca_lines.csv"
+    csv_path = ROOT / DEFAULT_LINES_CSV
     print("Generating train/val/test (independent seeds)...")
     split = make_split(csv_path)
     n_pu = sum(r.is_pileup for r in split.train)
