@@ -157,7 +157,6 @@ config/mca_lines.csv       2016 trainer lines (reference)
 data/                      generated labelled CSVs
 real_data/                 measured SDD + Fe-55 traces + manifest
 real_data_viewer.py        reviewer GUI (Up / Dn / Scan / Pause)
-ManuscriptDraftV2.docx     current draft (V1 is superseded)
 weights/                   frozen JSON + C header
 artifacts/                 confusion matrix, histograms, plot
 PileupNNBPTrainer/         WinForms trainer GUI (reference)

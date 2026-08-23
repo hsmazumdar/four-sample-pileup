@@ -26,4 +26,6 @@ _session/
 # Journal manuscript — keep off GitHub (publisher pre-publication policy)
 ManuscriptDraft.docx
 ManuscriptDraft.docs
+ManuscriptDraftV2.docx
+ManuscriptDraft*.docx
 ~$*.docx
