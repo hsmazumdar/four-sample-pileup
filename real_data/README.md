@@ -47,6 +47,8 @@ time is **1 µs**.
 python real_data_viewer.py
 ```
 
+Windows reviewers can double-click `real_data_viewer.bat` in the repo root.
+
 Step **Up** / **Dn** through pulses, **Scan** / **Pause**, filter
 Fe-55 vs periodic high pulses, and overlay four post-trigger taps.
 

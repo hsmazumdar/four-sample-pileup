@@ -34,6 +34,7 @@ python synthesize_data.py          # data synthesizer → data/*.csv
 python run_poc.py                  # train both heads, refresh RESULTS.md
 python -m sparse_pileup.report     # rebuild tables from frozen weights
 python real_data_viewer.py         # step / scan measured SDD + Fe-55 pulses
+real_data_viewer.bat               # Windows double-click launcher
 ```
 
 Tabulated numbers: **[RESULTS.md](RESULTS.md)**  
@@ -48,6 +49,8 @@ See [real_data/README.md](real_data/README.md). Open the reviewer GUI:
 ```bash
 python real_data_viewer.py
 ```
+
+Windows: double-click `real_data_viewer.bat` (installs `requirements.txt` if needed).
 
 The held-out tables in RESULTS.md are **synthetic** but **shape-calibrated**
 to these traces (CR–RC⁸, 1.01 µs peaking). Pile-up in the tables is still
@@ -157,6 +160,7 @@ config/mca_lines.csv       2016 trainer lines (reference)
 data/                      generated labelled CSVs
 real_data/                 measured SDD + Fe-55 traces + manifest
 real_data_viewer.py        reviewer GUI (Up / Dn / Scan / Pause)
+real_data_viewer.bat       Windows double-click launcher
 weights/                   frozen JSON + C header
 artifacts/                 confusion matrix, histograms, plot
 PileupNNBPTrainer/         WinForms trainer GUI (reference)
