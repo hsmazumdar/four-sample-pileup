@@ -1,26 +1,28 @@
-# Four-sample MLP for radiation pulse pile-up and peak height
+# Four-sample pile-up MLP and OT-LS peak height
 
 Repository: https://github.com/hsmazumdar/four-sample-pileup
 
 Lab proof of concept for a **resource-constrained radiation source counting
 front-end**. After a leading-edge trigger, **four** uniformly spaced ADC
-samples are latched. Two tiny MLPs run on those four numbers:
+samples are latched. A tiny MLP tags pile-up; height is a frozen-shape
+least-squares fit on the same four numbers:
 
 | Head | Size | Output | Role |
 |------|------|--------|------|
 | Pile-up | 4-5-1 (31 weights) | flag in (0,1), threshold 0.5 | veto / tag the event |
-| Peak | 4-5-1 (31 weights) | first-pulse height A1, 0..1 FS | MCA channel |
+| Peak | OT-LS (frozen CR–RC⁸) | first-pulse height A1, 0..1 FS | MCA channel |
 
 This repository is meant for **code review and reproduction**, not as a
-finished IEEE TNS / NIM A paper. Training is offline. FPGA/HLS only needs
-`SmallMLP.forward` + the four sample registers.
+finished IEEE TNS / NIM A paper. Pile-up training is offline. FPGA/HLS
+needs `SmallMLP.forward`, the OT-LS Φ table in `ls_peak.py`, and the
+four sample registers.
 
 ```
                  sample_reg[0..3]          ← 4 ADC taps, stride 4 (400 ns @ 10 MSPS)
                         │
           ┌─────────────┴─────────────┐
           ▼                           ▼
-   MLP_pileup  4-5-1           MLP_peak  4-5-1
+   MLP_pileup  4-5-1              OT-LS height
           │                           ▼
      pileup_flag                 peak_height (A1)
 ```
@@ -31,7 +33,8 @@ finished IEEE TNS / NIM A paper. Training is offline. FPGA/HLS only needs
 python -m pip install -r requirements.txt
 python tests/test_sanity.py
 python synthesize_data.py          # data synthesizer → data/*.csv
-python run_poc.py                  # train both heads, refresh RESULTS.md
+python run_poc.py                  # train pile-up head, refresh RESULTS.md
+python -m sparse_pileup.ls_peak    # OT-LS smoke on data/synth_test.csv
 python -m sparse_pileup.report     # rebuild tables from frozen weights
 python real_data_viewer.py         # step / scan measured SDD + Fe-55 pulses
 real_data_viewer.bat               # Windows double-click launcher
@@ -86,7 +89,7 @@ python synthesize_data.py --n-train 4000 --n-val 1000 --n-test 1000 --seed 42
 
 Seeds 42 / 43 / 44 are independent streams for train / val / test.
 
-## Held-out results (seed 42, 40 epochs)
+## Held-out results (seed 42; pile-up 40 epochs, height OT-LS)
 
 Full tables and the confusion matrix are in [RESULTS.md](RESULTS.md). Summary:
 
@@ -109,12 +112,14 @@ Precision stayed 1.000 (no false positives).
 
 | Subset | n | MAE (ch) | RMSE (ch) |
 |--------|--:|---------:|----------:|
-| Isolated pulses | 897 | 34.9 | 38.2 |
-| All events | 1000 | 42.3 | 61.0 |
+| Isolated pulses | 897 | 6.1 | 7.7 |
+| All events | 1000 | 32.5 | 140.1 |
 
-Isolated MAE improved vs the old stride-15 cartoon (93.7 ch) because the
-four taps now sit on the pulse. Peak-vs-A1 is still not the C# GUI figure
-(~0.89 ch), which was same-set against shaped max(waveform).
+Isolated MAE is OT-LS on the frozen CR–RC⁸ kernel. Quote the isolated
+row for height. The all-event row is OT-LS without the veto (not
+unfolding). The retired peak 4–5–1 scored 34.9 ch on the same isolated
+file. This is still not the C# GUI figure (~0.89 ch), which was
+same-set against shaped max(waveform).
 
 ## What matches the WinForms C# trainer
 
@@ -123,8 +128,8 @@ four taps now sit on the pulse. Peak-vs-A1 is still not the C# GUI figure
 | Pulse | width-15 rectangle, 3× RC | **CR–RC⁸ fitted to SDD Fe-55** |
 | Time base | samples only | **10 MSPS**, peaking 1.01 µs |
 | Samples | trigger ch 100, stride 15 | trigger ch 100, **stride 4** |
-| Network | one 4-5-2, Peak **or** Pileup | **two** 4-5-1, **both** every event |
-| Peak label | `max(waveform)`, isolated only | true **A1**, all events |
+| Network | one 4-5-2, Peak **or** Pileup | **4-5-1 pile-up** + **OT-LS height** |
+| Peak label | `max(waveform)`, isolated only | true **A1** (LS on four taps) |
 | 2nd piled pulse | `Uniform(0.1, 1)` | same Fe-55 lines as pulse 1 |
 | Train/test | same array | independent seeds |
 | Pile-up metric | mean \|yk − target\| | accuracy / precision / recall / F1 |
@@ -135,14 +140,16 @@ PoC keep **four** (fixed FPGA input width). Sweeping 4 / 8 / 16 / 32 is a
 
 ## FPGA port (what to synthesise)
 
-**Do synthesise:** trigger vs channel 100; four sample registers; two 4-5-1
-forwards in `sparse_pileup/mlp.py` (`SmallMLP.forward`); sigmoid clip ±10 then
-LUT; pile-up bit = `p >= 0.5`; peak word = `height * 4096`.
+**Do synthesise:** trigger vs channel 100; four sample registers;
+`SmallMLP.forward` for the pile-up veto; the OT-LS Φ table + A search
+in `sparse_pileup/ls_peak.py`; pile-up bit = `p >= 0.5`; peak word =
+`height * 4096`.
 
 **Do not synthesise:** `pulse_sim.py`, `train_step`, matplotlib.
 
 **Do not publish invented DSP/LUT/ns.** Count them from a synthesis of
-`weights/dual_head_weights.h`. Fully parallel MACs: 31 per head, 62 both.
+`weights/dual_head_weights.h`. Arithmetic budget: 31 pile-up MACs plus
+about 120 phases on a 0.1-sample δ grid. Do not quote a measured latency.
 
 ## Repository map
 
@@ -152,8 +159,9 @@ run_poc.py                 train + RESULTS.md
 RESULTS.md                 tabulated pile-up + peak
 sparse_pileup/pulse_sim.py    synthesizer engine (not RTL)
 sparse_pileup/sampler.py      trigger + 4 taps (RTL)
-sparse_pileup/mlp.py          4-5-1 MAC + sigmoid (RTL = forward)
-sparse_pileup/dual_head.py    both heads (RTL = infer)
+sparse_pileup/mlp.py          4-5-1 pile-up MAC + sigmoid (RTL = forward)
+sparse_pileup/ls_peak.py      OT-LS height (RTL = estimate)
+sparse_pileup/dual_head.py    infer = pile-up MLP + OT-LS
 config/sdd_shape.json      fitted CR–RC⁸ + noise
 config/sdd_fe55_lines.csv  Fe-55 amplitude table
 config/mca_lines.csv       2016 trainer lines (reference)
@@ -169,11 +177,12 @@ MCA4096/                   4096-channel spectrum GUI
 
 ## Claim this repo is allowed to make
 
-A 62-parameter dual-head MLP can tag pile-up and estimate A1 from four
-post-trigger samples on **synthetic CR–RC⁸ pulses fitted to measured
-SDD + Fe-55 traces**, with a held-out split. It is **not** a measured
-pile-up F1, **not** a novel “neural pile-up detector”, **not** measured
-FPGA latency, and **not** HPGe/NaI physics.
+A 31-parameter pile-up MLP plus a frozen CR–RC⁸ four-tap least-squares
+height can tag pile-up and estimate isolated A1 from four post-trigger
+samples on **synthetic CR–RC⁸ pulses fitted to measured SDD + Fe-55
+traces**, with a held-out split. It is **not** a measured pile-up F1,
+**not** a novel “neural pile-up detector”, **not** piled-up energy
+recovery, **not** measured FPGA latency, and **not** HPGe/NaI physics.
 
 Journal experiments still missing (do these before TNS/NIM A, not before
 pushing this PoC): F1 vs sample count, Pd vs Δt, A2/A1 map, SNR +

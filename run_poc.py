@@ -38,18 +38,16 @@ def train(model: DualHeadDetector, rows, epochs: int, rng: np.random.Generator) 
     order = np.arange(len(rows))
     for ep in range(1, epochs + 1):
         rng.shuffle(order)
-        acc_p = acc_h = 0.0
+        acc_p = 0.0
         for i in order:
             row = rows[i]
-            e_p, e_h = model.train_event(row.samples, row.is_pileup, row.amplitude_first)
+            e_p, _ = model.train_event(row.samples, row.is_pileup, row.amplitude_first)
             acc_p += e_p
-            acc_h += e_h
         n = len(rows)
         if ep == 1 or ep % 5 == 0 or ep == epochs:
             print(
                 f"  epoch {ep:3d}/{epochs}   "
-                f"pileup L1={acc_p/n:.4f}   peak L1={acc_h/n:.4f} "
-                f"({acc_h/n * ADC_CHANNELS:.2f} ch)"
+                f"pileup L1={acc_p/n:.4f}   (height is OT-LS, not trained)"
             )
 
 
@@ -91,11 +89,10 @@ def main() -> None:
     artifacts.mkdir(exist_ok=True)
     weights.mkdir(exist_ok=True)
 
-    print("Four-sample pile-up / peak dual-head PoC")
-    print("  SDD-fitted CR–RC^8, 10 MSPS, stride", SAMPLE_STRIDE)
-    print("  4 post-trigger samples -> two parallel 4-5-1 MLPs")
-    print(f"  inputs={N_SAMPLES}  hidden={N_HIDDEN}  "
-          f"(31 weights x 2 heads = 62 parameters)")
+    print("Four-sample pile-up MLP + OT-LS peak PoC")
+    print("  SDD-fitted CR-RC^8, 10 MSPS, stride", SAMPLE_STRIDE)
+    print("  4 post-trigger samples -> 4-5-1 pile-up veto + LS height")
+    print(f"  pile-up inputs={N_SAMPLES}  hidden={N_HIDDEN}  (31 weights)")
     print()
 
     csv_path = ROOT / DEFAULT_LINES_CSV
@@ -109,7 +106,7 @@ def main() -> None:
 
     rng = np.random.default_rng(DEFAULT_SEED + 99)
     model = DualHeadDetector.random(rng=rng)
-    print(f"\nTraining both heads on every event for {DEFAULT_EPOCHS} epochs...")
+    print(f"\nTraining pile-up head for {DEFAULT_EPOCHS} epochs (OT-LS height is frozen)...")
     train(model, split.train, DEFAULT_EPOCHS, rng)
 
     print("\nHeld-out test:")

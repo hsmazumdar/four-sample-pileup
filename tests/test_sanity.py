@@ -33,6 +33,7 @@ from sparse_pileup.pulse_sim import (  # noqa: E402
     load_mca_lines,
     simulate_pulse,
 )
+from sparse_pileup.ls_peak import LsPeakEstimator, unit_kernel_at  # noqa: E402
 from sparse_pileup.sampler import extract_frame, quantize_4096  # noqa: E402
 
 CSV = ROOT / "config" / "mca_lines.csv"
@@ -133,6 +134,9 @@ class DualHeadTests(unittest.TestCase):
         model2 = DualHeadDetector.load_json(path)
         r2 = model2.infer(x)
         self.assertAlmostEqual(r.pileup_prob, r2.pileup_prob, places=9)
+        self.assertAlmostEqual(r.peak_height, r2.peak_height, places=9)
+        data = DualHeadDetector.load_json(path)
+        self.assertEqual(data.peak.stride, SAMPLE_STRIDE)
         path.unlink(missing_ok=True)
 
     def test_tiny_split(self) -> None:
@@ -140,6 +144,29 @@ class DualHeadTests(unittest.TestCase):
         self.assertEqual(len(split.train), 8)
         self.assertEqual(split.train[0].samples.shape, (4,))
         self.assertTrue(0.0 <= split.train[0].amplitude_first < 1.0)
+
+
+class LsPeakSmokeTests(unittest.TestCase):
+    def test_unit_kernel_peaks_at_zero(self) -> None:
+        self.assertAlmostEqual(unit_kernel_at(0.0), 1.0, places=6)
+        self.assertLess(unit_kernel_at(-4.0), 0.7)
+        self.assertEqual(unit_kernel_at(-20.0), 0.0)
+
+    def test_noiseless_four_tap_recovers_a1(self) -> None:
+        from sparse_pileup.constants import PEDESTAL_CH, SAMPLE_STRIDE
+        from sparse_pileup.pulse_sim import cr_rc_n_kernel
+
+        a1 = 1197 / ADC_CHANNELS
+        t_peak = 32
+        wave = a1 * cr_rc_n_kernel(WAVEFORM_LEN, t_peak)
+        wave = np.clip(wave + PEDESTAL_CH / ADC_CHANNELS, 0.0, 1.0)
+        frame = extract_frame(wave)
+        self.assertIsNotNone(frame)
+        est = LsPeakEstimator()
+        hit = est.estimate(frame.samples)
+        err_ch = abs(hit.amplitude_ch - 1197.0)
+        self.assertLess(err_ch, 8.0, f"noiseless MAE {err_ch:.2f} ch")
+        self.assertEqual(int(frame.indices[1] - frame.indices[0]), SAMPLE_STRIDE)
 
 
 class RealSddTests(unittest.TestCase):

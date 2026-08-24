@@ -92,7 +92,7 @@ def format_report(
     peak_iso: PeakMetrics,
 ) -> str:
     lines = [
-        "Held-out report (not a paper claim; SDD-fitted CR–RC^8, synthetic pile-up)",
+        "Held-out report (not a paper claim; SDD-fitted CR-RC^8, OT-LS height, synthetic pile-up)",
         f"  Pile-up  n={pile.n}  (true pile-up {pile.n_pileup})",
         f"           acc={pile.accuracy:.3f}  F1={pile.f1:.3f}  "
         f"precision={pile.precision:.3f}  recall={pile.recall:.3f}",

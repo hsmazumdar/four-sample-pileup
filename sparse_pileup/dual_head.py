@@ -1,4 +1,8 @@
-"""Two 4-5-1 heads on the same four taps. ``infer`` is the FPGA contract."""
+"""Pile-up 4-5-1 MLP + OT-LS height on the same four taps.
+
+``infer`` is the FPGA contract: one sigmoid net for the veto, then
+closed-form A with a 1-D walk search. The old peak 4-5-1 is not used.
+"""
 
 from __future__ import annotations
 
@@ -9,6 +13,7 @@ import json
 import numpy as np
 
 from sparse_pileup.constants import ADC_CHANNELS, N_HIDDEN, N_SAMPLES
+from sparse_pileup.ls_peak import LsPeakEstimator
 from sparse_pileup.mlp import SmallMLP
 from sparse_pileup.sampler import assert_fpga_width
 
@@ -28,43 +33,44 @@ class InferResult:
 
 
 class DualHeadDetector:
-    """Python runs the heads back-to-back; FPGA can issue both MAC pipelines
-    once sample_reg[0..3] is full (or one DSP, twice the latency).
+    """Python runs the heads back-to-back; FPGA can issue the pile-up MAC
+    pipeline and the LS search once sample_reg[0..3] is full.
     """
 
-    def __init__(self, pileup: SmallMLP, peak: SmallMLP) -> None:
+    def __init__(self, pileup: SmallMLP, peak: LsPeakEstimator | None = None) -> None:
         self.pileup = pileup
-        self.peak = peak
+        self.peak = peak if peak is not None else LsPeakEstimator()
 
     @classmethod
     def random(cls, rng: np.random.Generator) -> "DualHeadDetector":
-        return cls(SmallMLP.random(rng), SmallMLP.random(rng))
+        return cls(SmallMLP.random(rng), LsPeakEstimator())
 
     def infer(self, samples: np.ndarray) -> InferResult:
         assert_fpga_width(np.asarray(samples, dtype=np.float64))
         p, _ = self.pileup.forward(samples)
-        h, _ = self.peak.forward(samples)
-        return InferResult(pileup_prob=float(p), peak_height=float(h))
+        h = self.peak.estimate(samples)
+        return InferResult(pileup_prob=float(p), peak_height=float(h.amplitude))
 
     def train_event(
         self,
         samples: np.ndarray,
         is_pileup: bool,
-        amplitude_first: float,
+        amplitude_first: float | None = None,
     ) -> tuple[float, float]:
-        """Update both heads. Peak target is true A1, including piled events."""
+        """Update the pile-up head only. Height is the frozen OT-LS model."""
+        _ = amplitude_first
         t_p = 1.0 if is_pileup else 0.0
         e_p = self.pileup.train_step(samples, t_p)
-        e_h = self.peak.train_step(samples, float(amplitude_first))
-        return e_p, e_h
+        return e_p, 0.0
 
     def save_json(self, path: Path) -> None:
         payload = {
             "n_samples": N_SAMPLES,
             "n_hidden": N_HIDDEN,
             "adc_channels": ADC_CHANNELS,
+            "height": "ot_ls",
             "pileup": self.pileup.to_lists(),
-            "peak": self.peak.to_lists(),
+            "ls_peak": self.peak.to_dict(),
         }
         Path(path).write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
@@ -73,5 +79,5 @@ class DualHeadDetector:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
         return cls(
             SmallMLP.from_lists(data["pileup"]),
-            SmallMLP.from_lists(data["peak"]),
+            LsPeakEstimator.from_dict(data.get("ls_peak")),
         )
