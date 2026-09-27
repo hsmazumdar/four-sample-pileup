@@ -33,7 +33,13 @@ from sparse_pileup.pulse_sim import (  # noqa: E402
     load_mca_lines,
     simulate_pulse,
 )
-from sparse_pileup.ls_peak import LsPeakEstimator, unit_kernel_at  # noqa: E402
+from sparse_pileup.ls_peak import (  # noqa: E402
+    OFFSETS_N8,
+    LsPeakEstimator,
+    estimate_offsets,
+    latch_offsets,
+    unit_kernel_at,
+)
 from sparse_pileup.sampler import extract_frame, quantize_4096  # noqa: E402
 
 CSV = ROOT / "config" / "mca_lines.csv"
@@ -140,7 +146,14 @@ class DualHeadTests(unittest.TestCase):
         path.unlink(missing_ok=True)
 
     def test_tiny_split(self) -> None:
-        split = make_split(ROOT / "config" / "sdd_fe55_lines.csv", n_train=8, n_val=4, n_test=4, seed=7)
+        split = make_split(
+            ROOT / "config" / "sdd_fe55_lines.csv",
+            n_train=8,
+            n_val=4,
+            n_test=4,
+            seed=7,
+            engine="kernel",
+        )
         self.assertEqual(len(split.train), 8)
         self.assertEqual(split.train[0].samples.shape, (4,))
         self.assertTrue(0.0 <= split.train[0].amplitude_first < 1.0)
@@ -167,6 +180,58 @@ class LsPeakSmokeTests(unittest.TestCase):
         err_ch = abs(hit.amplitude_ch - 1197.0)
         self.assertLess(err_ch, 8.0, f"noiseless MAE {err_ch:.2f} ch")
         self.assertEqual(int(frame.indices[1] - frame.indices[0]), SAMPLE_STRIDE)
+        trig = int(frame.indices[0])
+        taps8 = latch_offsets(wave, trig, OFFSETS_N8)
+        self.assertIsNotNone(taps8)
+        hit8 = estimate_offsets(taps8, OFFSETS_N8)
+        self.assertLess(abs(hit8.amplitude_ch - 1197.0), 8.0)
+
+
+class FusionVetoTests(unittest.TestCase):
+    def test_or_is_complementary(self) -> None:
+        from sparse_pileup.operating_region import score_or_fuse
+
+        self.assertEqual(score_or_fuse(0.9, 0.0), 1.0)
+        self.assertEqual(score_or_fuse(0.1, 1.0), 1.0)
+        self.assertEqual(score_or_fuse(0.1, 0.0), 0.0)
+        self.assertEqual(score_or_fuse(0.5, 0.0), 1.0)
+
+
+class FlexMlpTests(unittest.TestCase):
+    def test_n8_forward_range(self) -> None:
+        from sparse_pileup.flex_mlp import FlexMLP
+
+        rng = np.random.default_rng(0)
+        net = FlexMLP.random(8, rng)
+        y = net.forward(np.linspace(0.1, 0.4, 8))
+        self.assertTrue(0.0 < y < 1.0)
+        e0 = net.train_step(np.linspace(0.1, 0.4, 8), 0.0)
+        for _ in range(40):
+            net.train_step(np.linspace(0.1, 0.4, 8), 0.0)
+        e1 = abs(net.forward(np.linspace(0.1, 0.4, 8)) - 0.0)
+        self.assertLess(e1, e0)
+
+
+class RealSuperposeTests(unittest.TestCase):
+    def test_guest_adds_only_excess(self) -> None:
+        from sparse_pileup.constants import REAL_SNIPPET_PRE, WAVEFORM_LEN
+        from sparse_pileup.real_pulse_lib import IsolatedSnippet
+        from sparse_pileup.real_superpose import compose_waveform
+
+        pre = REAL_SNIPPET_PRE
+        host = np.full(WAVEFORM_LEN, 8, dtype=np.int16)
+        host[pre] = 1200
+        guest = np.full(WAVEFORM_LEN, 10, dtype=np.int16)
+        guest[pre] = 800
+        h = IsolatedSnippet(0, 1, host, 8.0, 1192.0)
+        g = IsolatedSnippet(1, 1, guest, 10.0, 790.0)
+        t1, gap = 32, 8
+        iso = compose_waveform(h, t1=t1)
+        piled = compose_waveform(h, t1=t1, guest=g, gap=gap)
+        self.assertAlmostEqual(iso[t1] * ADC_CHANNELS, 1200.0, places=3)
+        # Guest peak lands at t1+gap; host baseline remains (not 8+10).
+        self.assertGreater(piled[t1 + gap], iso[t1 + gap])
+        self.assertLess(piled[0] * ADC_CHANNELS, 20.0)
 
 
 class RealSddTests(unittest.TestCase):

@@ -32,7 +32,8 @@ four sample registers.
 ```bash
 python -m pip install -r requirements.txt
 python tests/test_sanity.py
-python synthesize_data.py          # data synthesizer → data/*.csv
+python -m sparse_pileup.real_pulse_lib   # isolated Fe-55 snippet library
+python synthesize_data.py          # default: real singles + constructed pile-up
 python run_poc.py                  # train pile-up head, refresh RESULTS.md
 python -m sparse_pileup.ls_peak    # OT-LS smoke on data/synth_test.csv
 python -m sparse_pileup.report     # rebuild tables from frozen weights
@@ -55,9 +56,10 @@ python real_data_viewer.py
 
 Windows: double-click `real_data_viewer.bat` (installs `requirements.txt` if needed).
 
-The held-out tables in RESULTS.md are **synthetic** but **shape-calibrated**
-to these traces (CR–RC⁸, 1.01 µs peaking). Pile-up in the tables is still
-injected in software. Real pile-up is scarce in the SDD drop.
+The held-out tables in RESULTS.md use **measured isolated Fe-55 pulses**.
+Pile-up rows are a **linear superposition of two isolated measured
+pulses** at a controlled delay (constructed, not a high-rate recording).
+`--engine kernel` still rebuilds the V3 CR–RC⁸ formula table.
 
 ## Data synthesizer
 
@@ -67,7 +69,9 @@ the exact train/val/test files. The kernel is a **CR–RC⁸** fit to
 
 | File | What it is |
 |------|------------|
-| `sparse_pileup/pulse_sim.py` | Pulse engine: fitted CR–RC⁸ + measured noise |
+| `sparse_pileup/real_superpose.py` | **Default engine:** measured singles + constructed pile-up |
+| `sparse_pileup/real_pulse_lib.py` | Isolated Fe-55 snippet library |
+| `sparse_pileup/pulse_sim.py` | V3 kernel engine: fitted CR–RC⁸ + measured noise |
 | `sparse_pileup/synthesize.py` | CLI that writes CSVs |
 | `synthesize_data.py` | Root entry point (`python synthesize_data.py`) |
 | `config/sdd_shape.json` | Frozen n, τ, peaking time, noise |
@@ -97,29 +101,29 @@ Full tables and the confusion matrix are in [RESULTS.md](RESULTS.md). Summary:
 
 | Metric | Value |
 |--------|------:|
-| Test events | 1000 (103 pile-up) |
-| Accuracy | 0.949 |
+| Test events | 1000 (95 constructed pile-up) |
+| Accuracy | 0.955 |
 | Precision | 1.000 |
-| Recall | 0.505 |
-| F1 | 0.671 |
-| Confusion | TN 897, FP 0, FN 51, TP 52 |
+| Recall | 0.526 |
+| F1 | 0.690 |
+| Confusion | TN 905, FP 0, FN 45, TP 50 |
 
-F1 is lower than the old cartoon-RC run (0.854). That is expected: the
-fitted 1 µs pulse is short, so four taps miss more of the second event.
-Precision stayed 1.000 (no false positives).
+Isolated events are measured Fe-55 snippets. Pile-up is constructed
+by adding two isolated snippets. This is not a measured high-rate F1.
+Precision stayed 1.000 (no false positives). V3 kernel F1 was 0.671.
 
-### Peak vs true A1 (4096-channel units)
+### Peak vs conventional A1 (4096-channel units)
 
 | Subset | n | MAE (ch) | RMSE (ch) |
 |--------|--:|---------:|----------:|
-| Isolated pulses | 897 | 6.1 | 7.7 |
-| All events | 1000 | 32.5 | 140.1 |
+| Isolated pulses, N = 4 (device) | 905 | 21.9 | 24.4 |
+| Isolated pulses, N = 8 (T/2, offline) | 905 | 20.8 | 23.2 |
+| All events, N = 4 | 1000 | 52.2 | 165.8 |
 
-Isolated MAE is OT-LS on the frozen CR–RC⁸ kernel. Quote the isolated
-row for height. The all-event row is OT-LS without the veto (not
-unfolding). The retired peak 4–5–1 scored 34.9 ch on the same isolated
-file. This is still not the C# GUI figure (~0.89 ch), which was
-same-set against shaped max(waveform).
+Isolated MAE is OT-LS (CR–RC⁸ template) vs peak-minus-baseline of a
+**real** Fe-55 pulse. The ~22 ch residual is kernel mismatch, not noise
+(V3’s 6.1 ch was the same kernel generating and fitting). N = 8 barely
+helps. The all-event row is OT-LS without the veto (not unfolding).
 
 ## What matches the WinForms C# trainer
 
@@ -179,14 +183,18 @@ MCA4096/                   4096-channel spectrum GUI
 
 A 31-parameter pile-up MLP plus a frozen CR–RC⁸ four-tap least-squares
 height can tag pile-up and estimate isolated A1 from four post-trigger
-samples on **synthetic CR–RC⁸ pulses fitted to measured SDD + Fe-55
-traces**, with a held-out split. It is **not** a measured pile-up F1,
-**not** a novel “neural pile-up detector”, **not** piled-up energy
-recovery, **not** measured FPGA latency, and **not** HPGe/NaI physics.
+samples on **measured isolated Fe-55 pulses**, with pile-up **constructed
+by adding two isolated measured snippets** at a controlled delay. It is
+**not** a measured high-rate pile-up F1, **not** a novel “neural pile-up
+detector”, **not** piled-up energy recovery, **not** measured FPGA
+latency, and **not** HPGe/NaI physics.
 
-Journal experiments still missing (do these before TNS/NIM A, not before
-pushing this PoC): F1 vs sample count, Pd vs Δt, A2/A1 map, SNR +
-conventional baselines.
+Operating-region maps (constructed pile-up, no Am-241) are in
+[RESULTS.md](RESULTS.md) and `python -m sparse_pileup.operating_region`.
+A complementary **OR** of the frozen 4–5–1 and a retrigger inspector
+recovers every constructed pair on the official mix (F1 1.000, 0 false
+positives). That is still not a measured high-rate F1. Still missing:
+Am-241 (or equivalent) pile-up F1.
 
 ## License
 

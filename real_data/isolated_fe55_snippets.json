@@ -1,0 +1,7 @@
+{
+  "n_isolated": 2878,
+  "peak_rel": 48,
+  "waveform_len": 160,
+  "iso_dt_us": 8.0,
+  "note": "Isolated measured Fe-55 singles. Not a pile-up set. Constructed pile-up adds two of these at a controlled delay."
+}

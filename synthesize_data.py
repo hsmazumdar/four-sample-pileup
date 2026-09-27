@@ -3,9 +3,10 @@
 
     python synthesize_data.py
 
-Writes labelled train/val/test CSVs under data/. Engine:
-sparse_pileup.pulse_sim (SDD-fitted CR–RC^8 + Fe-55 lines + measured
-noise). Pile-up is still synthetic.
+Writes labelled train/val/test CSVs under data/. Default engine is
+real-pulse superposition: isolated = measured Fe-55 snippets; pile-up
+= linear sum of two snippets (constructed, not measured). Use
+--engine kernel for the V3 CR–RC⁸ injector.
 """
 
 from __future__ import annotations

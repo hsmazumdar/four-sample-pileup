@@ -1,7 +1,7 @@
 Held-out report (not a paper claim; SDD-fitted CR-RC^8, OT-LS height, synthetic pile-up)
-  Pile-up  n=1000  (true pile-up 103)
-           acc=0.949  F1=0.671  precision=1.000  recall=0.505
-           tp=52  fp=0  tn=897  fn=51
-  Peak vs A1, isolated  n=897  MAE=6.1 ch  RMSE=7.7 ch  max=35.4 ch
-  Peak vs A1, all events n=1000  MAE=32.5 ch  RMSE=140.1 ch  max=1146.1 ch
+  Pile-up  n=1000  (true pile-up 95)
+           acc=0.955  F1=0.690  precision=1.000  recall=0.526
+           tp=50  fp=0  tn=905  fn=45
+  Peak vs A1, isolated  n=905  MAE=21.9 ch  RMSE=24.4 ch  max=61.1 ch
+  Peak vs A1, all events n=1000  MAE=52.2 ch  RMSE=165.8 ch  max=1286.3 ch
   Peak target is true first-pulse amplitude A1, not shaped max(waveform).

@@ -14,14 +14,23 @@ from collections import Counter
 from pathlib import Path
 import sys
 
+import numpy as np
+
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from sparse_pileup.constants import ADC_CHANNELS, DEFAULT_LINES_CSV, DEFAULT_SEED, N_TEST
+from sparse_pileup.constants import (
+    ADC_CHANNELS,
+    DEFAULT_ENGINE,
+    DEFAULT_LINES_CSV,
+    DEFAULT_SEED,
+    N_TEST,
+)
 from sparse_pileup.dataset import generate_events
 from sparse_pileup.dual_head import DualHeadDetector
-from sparse_pileup.metrics import format_report, peak_metrics, pileup_metrics
+from sparse_pileup.ls_peak import OFFSETS_N8, estimate_offsets, latch_offsets
+from sparse_pileup.metrics import PeakMetrics, format_report, peak_metrics, pileup_metrics
 
 
 def _peak_hist(model: DualHeadDetector, rows, isolated_only: bool) -> Counter:
@@ -84,6 +93,30 @@ def write_tables(
              f"{peak_all.rmse_ch:.4f}", f"{peak_all.max_ch:.4f}"]
         )
 
+    n8_err: list[float] = []
+    for row in rows:
+        if row.is_pileup:
+            continue
+        taps = latch_offsets(row.waveform, int(row.frame.indices[0]), OFFSETS_N8)
+        if taps is None:
+            continue
+        pred = estimate_offsets(taps, OFFSETS_N8).amplitude
+        n8_err.append(abs(pred - row.amplitude_first) * ADC_CHANNELS)
+    n8_arr = np.array(n8_err, dtype=np.float64)
+    peak_n8 = PeakMetrics(
+        n=int(n8_arr.size),
+        mae_ch=float(n8_arr.mean()) if n8_arr.size else 0.0,
+        rmse_ch=float(np.sqrt((n8_arr**2).mean())) if n8_arr.size else 0.0,
+        max_ch=float(n8_arr.max()) if n8_arr.size else 0.0,
+    )
+    with (artifacts / "peak_n8_metrics.csv").open("w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["subset", "n", "MAE_ch", "RMSE_ch", "max_ch"])
+        w.writerow(
+            ["isolated_n8_T/2", peak_n8.n, f"{peak_n8.mae_ch:.4f}",
+             f"{peak_n8.rmse_ch:.4f}", f"{peak_n8.max_ch:.4f}"]
+        )
+
     hist_iso = _peak_hist(model, rows, isolated_only=True)
     hist_all = _peak_hist(model, rows, isolated_only=False)
     bins = sorted(set(hist_iso) | set(hist_all))
@@ -95,13 +128,18 @@ def write_tables(
 
     md = f"""# Held-out results (seed 42 protocol)
 
-Synthetic **CR–RC⁸** pulses fitted to isolated Fe-55 SDD traces
-(`config/sdd_shape.json`, fs = 10 MSPS, peaking 1.01 µs, stride 4).
-Pile-up is still **injected in software**. Height is **OT-LS**
-(frozen CR–RC⁸ template + four-tap least squares), not the old
-peak 4–5–1 MLP. These numbers are not a measured pile-up F1 and
-not HPGe/NaI data. Reproduce with `python synthesize_data.py`
-then `python run_poc.py`.
+**Engine = real-pulse superposition (V4).** Isolated events are
+measured Fe-55 SDD snippets. Pile-up events are a **linear sum of
+two isolated measured pulses** at a controlled peak-to-peak delay.
+They are **constructed**, not Poisson arrivals recorded at high rate,
+and this is **not** a measured pile-up F1.
+
+Height is **OT-LS** (frozen CR–RC⁸ template + four-tap least squares).
+A1 / A2 labels are conventional peak-minus-baseline of each snippet.
+Unique pulses are partitioned so a test snippet is never used in
+training. Reproduce: `python -m sparse_pileup.real_pulse_lib`
+then `python synthesize_data.py` then `python run_poc.py`.
+The V3 formula injector remains as `--engine kernel`.
 
 Test set: n = {pile.n} events, independent RNG seed `{DEFAULT_SEED}+2`.
 Peak target = true first-pulse amplitude A1 (4096-channel units).
@@ -145,23 +183,37 @@ target and is not comparable to the A1 columns above.
 
 Error histogram (rounded |err|): `artifacts/peak_error_hist.csv`.
 
+## Offline N = 8 at T/2 (ablation, not the FPGA claim)
+
+Same isolated events, same OT-LS equation, eight taps at 200 ns
+(ADC1 at 0, T, 2T, 3T and ADC2 at T/2… or one 10 MSPS stream).
+Extra points are redundant for the frozen shape; they reduce noise.
+Do not pick “best of two” N = 4 heads — average / one 8-tap LS.
+
+| Subset | n | MAE (ch) | RMSE (ch) | Max (ch) |
+|--------|--:|---------:|----------:|---------:|
+| Isolated, N = 4 (device) | {peak_iso.n} | {peak_iso.mae_ch:.1f} | {peak_iso.rmse_ch:.1f} | {peak_iso.max_ch:.1f} |
+| Isolated, N = 8 (T/2) | {peak_n8.n} | {peak_n8.mae_ch:.1f} | {peak_n8.rmse_ch:.1f} | {peak_n8.max_ch:.1f} |
+
+Machine-readable: `artifacts/peak_n8_metrics.csv`.
+
 ## How these numbers were produced
 
-1. Fit isolated Fe-55 pulses → `config/sdd_shape.json` (CR–RC⁸, τ = 1.2606 samples).
-2. `python synthesize_data.py` — 4000/1000/1000 events, seeds 42/43/44,
-   lines in `config/sdd_fe55_lines.csv`, measured baseline noise.
-3. `python run_poc.py` — train the 4–5–1 pile-up head 40 epochs, η = 0.5.
+1. Extract isolated Fe-55 pulses → `real_data/isolated_fe55_snippets.npz`.
+2. Partition unique snippets 60/20/20 (seed 42).
+3. `python synthesize_data.py` — 4000/1000/1000 events, seeds 42/43/44.
+   Isolated = one snippet. Pile-up = host as measured + guest excess at Δt.
+4. `python run_poc.py` — train the 4–5–1 pile-up head 40 epochs, η = 0.5.
    Height is the frozen OT-LS estimator (`sparse_pileup/ls_peak.py`).
-4. Evaluate `infer()` on the held-out test seed.
+5. Evaluate `infer()` on the held-out test seed.
 
 The 2016 C# same-set MAE (~0.89 ch vs shaped max) used a different
 pulse, stride 15, and a different label. Do not compare it to the A1
 columns above.
 
-Versus the previous cartoon synthesizer (3× leaky integrator, stride 15):
-pile-up F1 fell from 0.854 to 0.671 (recall 0.505; precision still 1.000).
-Isolated A1 MAE is now OT-LS (~6 ch), not the old peak-MLP 34.9 ch.
-Both pile-up and height numbers are still synthetic.
+V3 used a CR–RC⁸ formula for both pulses (F1 0.671, isolated MAE 6.1 ch).
+V4 isolated events are real singles; pile-up is still constructed.
+`--engine kernel` rebuilds the V3 table.
 """
     results_md.write_text(md, encoding="utf-8")
     print(report)
@@ -178,10 +230,17 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--results", type=Path, default=ROOT / "RESULTS.md")
     p.add_argument("--n-test", type=int, default=N_TEST)
     p.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    p.add_argument("--engine", choices=("real", "kernel"), default=DEFAULT_ENGINE)
     args = p.parse_args(argv)
 
     model = DualHeadDetector.load_json(args.weights)
-    rows = generate_events(args.n_test, args.config, args.seed + 2)
+    rows = generate_events(
+        args.n_test,
+        args.config,
+        args.seed + 2,
+        engine=args.engine,
+        split_name="test",
+    )
     write_tables(model, rows, args.artifacts, args.results)
 
 

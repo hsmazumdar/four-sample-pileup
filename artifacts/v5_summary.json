@@ -1,0 +1,65 @@
+{
+  "held_out": {
+    "n": 1000,
+    "n_pileup": 95,
+    "tp": 50,
+    "fp": 0,
+    "tn": 905,
+    "fn": 45,
+    "precision": 1.0,
+    "recall": 0.5263157894736842,
+    "f1": 0.6896551724137931,
+    "auc": 0.834655423088107,
+    "recall_ci95": [
+      0.4268517068062815,
+      0.6237342812797065
+    ],
+    "precision_ci95": [
+      0.9286499658256813,
+      1.0
+    ]
+  },
+  "held_out_recall_ci95": [
+    0.4268517068062815,
+    0.6237342812797065
+  ],
+  "held_out_auc": 0.834655423088107,
+  "empirical_mae_ch": 11.205437156902553,
+  "kernel_mae_ch": 21.14399087142957,
+  "note": "Constructed pile-up from measured Fe-55 singles. Not Am-241.",
+  "fusion": {
+    "held_out_mlp": {
+      "f1": 0.6896551724137931,
+      "recall": 0.5263157894736842,
+      "precision": 1.0,
+      "tp": 50,
+      "fp": 0,
+      "fn": 45
+    },
+    "held_out_retrigger": {
+      "f1": 0.6986301369863014,
+      "recall": 0.5368421052631579,
+      "precision": 1.0,
+      "tp": 51,
+      "fp": 0,
+      "fn": 44
+    },
+    "held_out_or": {
+      "f1": 1.0,
+      "recall": 1.0,
+      "precision": 1.0,
+      "tp": 95,
+      "fp": 0,
+      "tn": 905,
+      "fn": 0,
+      "auc": 1.0,
+      "recall_ci95": [
+        0.9611337736337738,
+        1.0
+      ]
+    },
+    "balanced_or_f1": 1.0,
+    "balanced_or_recall": 1.0,
+    "note": "Constructed pile-up. OR of frozen 4-5-1 and retrigger. Not Am-241."
+  }
+}

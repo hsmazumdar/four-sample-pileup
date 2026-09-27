@@ -27,12 +27,16 @@ from sparse_pileup.constants import (  # noqa: E402
     PEDESTAL_CH,
     SAMPLE_STRIDE,
 )
-from sparse_pileup.sampler import assert_fpga_width  # noqa: E402
+from sparse_pileup.sampler import assert_fpga_width, quantize_4096  # noqa: E402
 
 PEDESTAL = PEDESTAL_CH / float(ADC_CHANNELS)
 DELTA_LO = -10.0
 DELTA_HI = 2.0
 DELTA_STEP = 0.1
+# FPGA / paper claim: four taps at stride T = 4 (400 ns).
+OFFSETS_N4 = (0, 4, 8, 12)
+# Offline / 2-ADC ablation: second bank starts at T/2; eight samples at T/2.
+OFFSETS_N8 = (0, 2, 4, 6, 8, 10, 12, 14)
 
 
 def unit_kernel_at(
@@ -53,6 +57,35 @@ def phi_taps(delta: float, stride: int = SAMPLE_STRIDE) -> np.ndarray:
         [unit_kernel_at(delta + k * stride) for k in range(N_SAMPLES)],
         dtype=np.float64,
     )
+
+
+def phi_offsets(delta: float, offsets: tuple[int, ...] | list[int]) -> np.ndarray:
+    return np.array([unit_kernel_at(delta + off) for off in offsets], dtype=np.float64)
+
+
+def latch_offsets(waveform: np.ndarray, trig: int, offsets: tuple[int, ...] | list[int]) -> np.ndarray | None:
+    idxs = int(trig) + np.asarray(offsets, dtype=np.int32)
+    if int(idxs.min()) < 0 or int(idxs.max()) >= len(waveform):
+        return None
+    return np.array([quantize_4096(float(waveform[i])) for i in idxs], dtype=np.float64)
+
+
+def estimate_offsets(
+    samples: np.ndarray,
+    offsets: tuple[int, ...] | list[int],
+    *,
+    pedestal: float = PEDESTAL,
+    delta_lo: float = DELTA_LO,
+    delta_hi: float = DELTA_HI,
+    delta_step: float = DELTA_STEP,
+) -> LsPeakResult:
+    y_hat = np.asarray(samples, dtype=np.float64) - float(pedestal)
+    best_a, best_j, best_d = 0.0, 1e9, 0.0
+    for d in np.arange(delta_lo, delta_hi + 0.5 * delta_step, delta_step):
+        a, j = _solve_a(y_hat, phi_offsets(float(d), offsets))
+        if j < best_j:
+            best_a, best_j, best_d = a, j, float(d)
+    return LsPeakResult(amplitude=best_a, delta=best_d, residual=best_j)
 
 
 def _solve_a(y_hat: np.ndarray, phi: np.ndarray, weights: np.ndarray | None = None) -> tuple[float, float]:

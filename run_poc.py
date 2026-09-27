@@ -90,7 +90,7 @@ def main() -> None:
     weights.mkdir(exist_ok=True)
 
     print("Four-sample pile-up MLP + OT-LS peak PoC")
-    print("  SDD-fitted CR-RC^8, 10 MSPS, stride", SAMPLE_STRIDE)
+    print("  engine=real (measured singles + constructed pile-up), stride", SAMPLE_STRIDE)
     print("  4 post-trigger samples -> 4-5-1 pile-up veto + LS height")
     print(f"  pile-up inputs={N_SAMPLES}  hidden={N_HIDDEN}  (31 weights)")
     print()

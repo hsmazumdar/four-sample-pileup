@@ -44,21 +44,30 @@ def find_trigger(waveform: np.ndarray, level: float = TRIGGER_LEVEL) -> int | No
     return None
 
 
-def extract_frame(waveform: np.ndarray) -> SampleFrame | None:
-    """Four amplitudes at n_trig + k*SAMPLE_STRIDE. None if no trigger or overrun."""
+def extract_n_taps(
+    waveform: np.ndarray,
+    n: int,
+    stride: int,
+) -> SampleFrame | None:
+    """n amplitudes at n_trig + k*stride. None if no trigger or overrun."""
     trig = find_trigger(waveform)
     if trig is None:
         return None
-    last = trig + (N_SAMPLES - 1) * SAMPLE_STRIDE
-    if last >= len(waveform):
+    last = trig + (int(n) - 1) * int(stride)
+    if last >= len(waveform) or last < 0:
         return None
     indices = np.array(
-        [trig + k * SAMPLE_STRIDE for k in range(N_SAMPLES)], dtype=np.int32
+        [trig + k * int(stride) for k in range(int(n))], dtype=np.int32
     )
     samples = np.array(
         [quantize_4096(float(waveform[i])) for i in indices], dtype=np.float64
     )
     return SampleFrame(indices=indices, samples=samples)
+
+
+def extract_frame(waveform: np.ndarray) -> SampleFrame | None:
+    """Four amplitudes at n_trig + k*SAMPLE_STRIDE. None if no trigger or overrun."""
+    return extract_n_taps(waveform, N_SAMPLES, SAMPLE_STRIDE)
 
 
 def assert_fpga_width(samples: np.ndarray) -> None:

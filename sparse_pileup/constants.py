@@ -56,3 +56,13 @@ N_TRAIN = 4000
 N_VAL = 1000
 N_TEST = 1000
 DEFAULT_LINES_CSV = "config/sdd_fe55_lines.csv"
+
+# --- Real-pulse superposition (default V4 engine) ---
+# Isolated events are measured Fe-55 snippets. Pile-up is a linear sum of
+# two isolated snippets at a controlled Δt — constructed, not measured.
+DEFAULT_ENGINE = "real"
+REAL_ISO_DT_SAMPLES = 80  # 8 µs isolation on both sides
+REAL_SNIPPET_PRE = 48  # samples stored before the peak
+REAL_LIBRARY_TRAIN_FRAC = 0.60
+REAL_LIBRARY_VAL_FRAC = 0.20
+REAL_SNIPPETS_NPZ = "real_data/isolated_fe55_snippets.npz"

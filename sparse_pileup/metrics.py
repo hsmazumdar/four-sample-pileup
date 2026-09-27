@@ -86,13 +86,47 @@ def peak_metrics(
     )
 
 
+def wilson_interval(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
+    """Wilson score interval for a binomial proportion."""
+    if n <= 0:
+        return (0.0, 0.0)
+    p = k / n
+    den = 1.0 + z * z / n
+    centre = (p + z * z / (2.0 * n)) / den
+    half = (z / den) * np.sqrt(p * (1.0 - p) / n + z * z / (4.0 * n * n))
+    return (max(0.0, centre - half), min(1.0, centre + half))
+
+
+def roc_auc(scores: np.ndarray, labels: np.ndarray) -> float:
+    """Mann–Whitney AUC. labels 1 = pile-up."""
+    s = np.asarray(scores, dtype=np.float64)
+    y = np.asarray(labels, dtype=np.int32)
+    pos = s[y == 1]
+    neg = s[y == 0]
+    if pos.size == 0 or neg.size == 0:
+        return float("nan")
+    # P(score_pos > score_neg) + 0.5 P(equal)
+    # argsort ranks
+    order = np.argsort(s)
+    ranks = np.empty(s.size, dtype=np.float64)
+    ranks[order] = np.arange(1, s.size + 1, dtype=np.float64)
+    # average ties
+    _, inv, counts = np.unique(s, return_inverse=True, return_counts=True)
+    if np.any(counts > 1):
+        sum_ranks = np.bincount(inv, weights=ranks)
+        mean_ranks = sum_ranks / counts
+        ranks = mean_ranks[inv]
+    auc = (ranks[y == 1].sum() - pos.size * (pos.size + 1) / 2.0) / (pos.size * neg.size)
+    return float(auc)
+
+
 def format_report(
     pile: PileupMetrics,
     peak_all: PeakMetrics,
     peak_iso: PeakMetrics,
 ) -> str:
     lines = [
-        "Held-out report (not a paper claim; SDD-fitted CR-RC^8, OT-LS height, synthetic pile-up)",
+        "Held-out report (not a paper claim; real Fe-55 singles + constructed pile-up, OT-LS height)",
         f"  Pile-up  n={pile.n}  (true pile-up {pile.n_pileup})",
         f"           acc={pile.accuracy:.3f}  F1={pile.f1:.3f}  "
         f"precision={pile.precision:.3f}  recall={pile.recall:.3f}",

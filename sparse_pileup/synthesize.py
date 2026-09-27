@@ -9,12 +9,11 @@ Output (default ``data/``):
     example_isolated.csv / example_pileup.csv
         full shaped waveforms (WAVEFORM_LEN samples)
 
-Physics (shape-calibrated testbench, not a measured pile-up dump):
-    CR–RC^8 kernel fitted to isolated Fe-55 SDD pulses, fs = 10 MHz,
-    peaking 1.01 µs, measured baseline noise (σ ≈ 9.9 ch). Amplitudes
-    from config/sdd_fe55_lines.csv (Si escape / Mn Kα / Mn Kβ).
-    Pile-up is Bernoulli 1/10 with a 3–20 sample (0.3–2.0 µs)
-    peak-to-peak gap. Four taps at trigger + k*4 samples (400 ns).
+Physics (default engine=real):
+    Isolated events are measured Fe-55 snippets. Pile-up is a linear
+    sum of two isolated snippets at a controlled peak-to-peak delay —
+    constructed, not a Poisson high-rate recording.
+    engine=kernel keeps the V3 CR–RC^8 formula injector.
 """
 
 from __future__ import annotations
@@ -30,6 +29,7 @@ if str(ROOT) not in sys.path:
 import numpy as np
 
 from sparse_pileup.constants import (
+    DEFAULT_ENGINE,
     DEFAULT_LINES_CSV,
     DEFAULT_SEED,
     N_TEST,
@@ -52,7 +52,7 @@ def _write_waveform_csv(path: Path, waveform: np.ndarray, title: str) -> None:
 
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(
-        description="Synthesize labelled 4-sample events from the SDD-fitted CR–RC^n kernel."
+        description="Synthesize labelled 4-sample events (real-pulse superposition by default)."
     )
     p.add_argument("--config", type=Path, default=ROOT / DEFAULT_LINES_CSV)
     p.add_argument("--out", type=Path, default=ROOT / "data")
@@ -60,6 +60,12 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--n-val", type=int, default=N_VAL)
     p.add_argument("--n-test", type=int, default=N_TEST)
     p.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    p.add_argument(
+        "--engine",
+        choices=("real", "kernel"),
+        default=DEFAULT_ENGINE,
+        help="real = measured singles + constructed pile-up; kernel = V3 CR–RC⁸",
+    )
     args = p.parse_args(argv)
 
     split = make_split(
@@ -68,6 +74,7 @@ def main(argv: list[str] | None = None) -> None:
         n_val=args.n_val,
         n_test=args.n_test,
         seed=args.seed,
+        engine=args.engine,
     )
     args.out.mkdir(parents=True, exist_ok=True)
     write_events_csv(args.out / "synth_train.csv", split.train, "train")
@@ -80,7 +87,7 @@ def main(argv: list[str] | None = None) -> None:
         args.out / "example_isolated.csv",
         iso.waveform,
         f"isolated A1={iso.amplitude_first:.4f} trig={int(iso.frame.indices[0])} "
-        f"stride={SAMPLE_STRIDE} CR-RC^{8}",
+        f"stride={SAMPLE_STRIDE} engine={args.engine}",
     )
     _write_waveform_csv(
         args.out / "example_pileup.csv",
@@ -90,9 +97,10 @@ def main(argv: list[str] | None = None) -> None:
     )
 
     n_pu = sum(r.is_pileup for r in split.train)
-    print("Data synthesizer (SDD-fitted CR–RC^8, 10 MSPS)")
+    print(f"Data synthesizer (engine={args.engine}, 10 MSPS)")
     print(f"  seed={args.seed}  waveform_len={WAVEFORM_LEN}  stride={SAMPLE_STRIDE}")
-    print(f"  lines={args.config}")
+    print(f"  isolated = measured Fe-55; pile-up = constructed sum" if args.engine == "real"
+          else f"  lines={args.config}")
     print(f"  train={len(split.train)} (pile-up {n_pu})  "
           f"val={len(split.val)}  test={len(split.test)}")
     print(f"  wrote {args.out / 'synth_train.csv'}")

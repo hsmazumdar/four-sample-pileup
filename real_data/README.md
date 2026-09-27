@@ -34,6 +34,7 @@ included in this drop.
 | `metadata.json` | Machine-readable acquisition record |
 | `manifest.csv` | Segment index, new name, original lab name, sample count |
 | `sdd_fe55/sdd_fe55_12bit_10msps_seg001.txt` … `seg061.txt` | Time-ordered ADC streams |
+| `isolated_fe55_snippets.npz` | Peak-aligned isolated Fe-55 library (constructed pile-up input) |
 
 Original lab names (`1.xls`, `2`…`9`, `a`…`z`, `aa`…`zz`) had no
 extension, or a misleading `.xls`. The mapping is in `manifest.csv`.
@@ -60,3 +61,6 @@ Fe-55 vs periodic high pulses, and overlay four post-trigger taps.
   hide it with the viewer’s “Fe-55 window” filter.
 - Pile-up events are scarce (low source rate). Do not quote a pile-up
   F1 from this set.
+- `isolated_fe55_snippets.npz` is a library of isolated singles used to
+  **construct** pile-up by linear superposition. That is not measured
+  high-rate pile-up. Rebuild with `python -m sparse_pileup.real_pulse_lib`.

@@ -1,0 +1,35 @@
+{
+  "held_out_mlp": {
+    "f1": 0.6896551724137931,
+    "recall": 0.5263157894736842,
+    "precision": 1.0,
+    "tp": 50,
+    "fp": 0,
+    "fn": 45
+  },
+  "held_out_retrigger": {
+    "f1": 0.6986301369863014,
+    "recall": 0.5368421052631579,
+    "precision": 1.0,
+    "tp": 51,
+    "fp": 0,
+    "fn": 44
+  },
+  "held_out_or": {
+    "f1": 1.0,
+    "recall": 1.0,
+    "precision": 1.0,
+    "tp": 95,
+    "fp": 0,
+    "tn": 905,
+    "fn": 0,
+    "auc": 1.0,
+    "recall_ci95": [
+      0.9611337736337738,
+      1.0
+    ]
+  },
+  "balanced_or_f1": 1.0,
+  "balanced_or_recall": 1.0,
+  "note": "Constructed pile-up. OR of frozen 4-5-1 and retrigger. Not Am-241."
+}
