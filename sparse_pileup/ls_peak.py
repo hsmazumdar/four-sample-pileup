@@ -52,15 +52,30 @@ def unit_kernel_at(
     return float((u / n) ** n * np.exp(n - u))
 
 
-def phi_taps(delta: float, stride: int = SAMPLE_STRIDE) -> np.ndarray:
+def phi_taps(
+    delta: float,
+    stride: int = SAMPLE_STRIDE,
+    *,
+    tau: float = CR_RC_TAU_SAMPLES,
+    n: int = CR_RC_N,
+) -> np.ndarray:
     return np.array(
-        [unit_kernel_at(delta + k * stride) for k in range(N_SAMPLES)],
+        [unit_kernel_at(delta + k * stride, n=n, rc_tau=tau) for k in range(N_SAMPLES)],
         dtype=np.float64,
     )
 
 
-def phi_offsets(delta: float, offsets: tuple[int, ...] | list[int]) -> np.ndarray:
-    return np.array([unit_kernel_at(delta + off) for off in offsets], dtype=np.float64)
+def phi_offsets(
+    delta: float,
+    offsets: tuple[int, ...] | list[int],
+    *,
+    tau: float = CR_RC_TAU_SAMPLES,
+    n: int = CR_RC_N,
+) -> np.ndarray:
+    return np.array(
+        [unit_kernel_at(delta + off, n=n, rc_tau=tau) for off in offsets],
+        dtype=np.float64,
+    )
 
 
 def latch_offsets(waveform: np.ndarray, trig: int, offsets: tuple[int, ...] | list[int]) -> np.ndarray | None:
@@ -78,11 +93,13 @@ def estimate_offsets(
     delta_lo: float = DELTA_LO,
     delta_hi: float = DELTA_HI,
     delta_step: float = DELTA_STEP,
+    tau: float = CR_RC_TAU_SAMPLES,
+    n: int = CR_RC_N,
 ) -> LsPeakResult:
     y_hat = np.asarray(samples, dtype=np.float64) - float(pedestal)
     best_a, best_j, best_d = 0.0, 1e9, 0.0
     for d in np.arange(delta_lo, delta_hi + 0.5 * delta_step, delta_step):
-        a, j = _solve_a(y_hat, phi_offsets(float(d), offsets))
+        a, j = _solve_a(y_hat, phi_offsets(float(d), offsets, tau=tau, n=n))
         if j < best_j:
             best_a, best_j, best_d = a, j, float(d)
     return LsPeakResult(amplitude=best_a, delta=best_d, residual=best_j)
@@ -129,14 +146,20 @@ class LsPeakEstimator:
         delta_hi: float = DELTA_HI,
         delta_step: float = DELTA_STEP,
         stride: int = SAMPLE_STRIDE,
+        tau: float = CR_RC_TAU_SAMPLES,
+        n_shape: int = CR_RC_N,
     ) -> None:
         self.pedestal = float(pedestal)
         self.stride = int(stride)
+        self.tau = float(tau)
+        self.n_shape = int(n_shape)
         self.delta_lo = float(delta_lo)
         self.delta_hi = float(delta_hi)
         self.delta_step = float(delta_step)
         self.deltas = np.arange(delta_lo, delta_hi + 0.5 * delta_step, delta_step)
-        self._phi = np.stack([phi_taps(d, self.stride) for d in self.deltas])
+        self._phi = np.stack(
+            [phi_taps(d, self.stride, tau=self.tau, n=self.n_shape) for d in self.deltas]
+        )
 
     def to_dict(self) -> dict:
         return {
@@ -145,6 +168,8 @@ class LsPeakEstimator:
             "delta_hi": self.delta_hi,
             "delta_step": self.delta_step,
             "stride": self.stride,
+            "tau": self.tau,
+            "n_shape": self.n_shape,
         }
 
     @classmethod
@@ -157,12 +182,14 @@ class LsPeakEstimator:
             delta_hi=float(data.get("delta_hi", DELTA_HI)),
             delta_step=float(data.get("delta_step", DELTA_STEP)),
             stride=int(data.get("stride", SAMPLE_STRIDE)),
+            tau=float(data.get("tau", CR_RC_TAU_SAMPLES)),
+            n_shape=int(data.get("n_shape", CR_RC_N)),
         )
 
     def estimate_known_delta(self, samples: np.ndarray, delta: float) -> LsPeakResult:
         assert_fpga_width(np.asarray(samples, dtype=np.float64))
         y_hat = np.asarray(samples, dtype=np.float64) - self.pedestal
-        phi = phi_taps(float(delta), self.stride)
+        phi = phi_taps(float(delta), self.stride, tau=self.tau, n=self.n_shape)
         a, j = _solve_a(y_hat, phi)
         return LsPeakResult(amplitude=a, delta=float(delta), residual=j)
 

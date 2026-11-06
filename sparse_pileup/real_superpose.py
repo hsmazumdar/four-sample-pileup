@@ -46,13 +46,27 @@ def compose_waveform(
     t1: int,
     guest: IsolatedSnippet | None = None,
     gap: int = 0,
+    guest_scale: float = 1.0,
+    extra_noise_ch: float = 0.0,
+    rng: np.random.Generator | None = None,
 ) -> np.ndarray:
-    """Return a 0..1 full-scale waveform, clipped to the 12-bit range."""
+    """Return a 0..1 full-scale waveform, clipped to the 12-bit range.
+
+    The host is the measured snippet (one baseline, one noise draw).
+    The guest contributes only its baseline-subtracted excess, scaled by
+    ``guest_scale``. No second pedestal is added. ``extra_noise_ch`` is
+    off unless a caller explicitly requests an SNR stress test; the
+    default path does not add ``NOISE_SIGMA_CH`` on top of measured noise.
+    """
     canvas = np.zeros(WAVEFORM_LEN, dtype=np.float64)
     _place(canvas, host.adc.astype(np.float64), t1)
     if guest is not None and gap > 0:
-        excess = guest.adc.astype(np.float64) - guest.baseline_ch
+        excess = (guest.adc.astype(np.float64) - guest.baseline_ch) * float(guest_scale)
         _place(canvas, excess, t1 + int(gap))
+    if extra_noise_ch > 0.0:
+        if rng is None:
+            rng = np.random.default_rng()
+        canvas = canvas + rng.normal(0.0, float(extra_noise_ch), size=WAVEFORM_LEN)
     canvas = np.clip(canvas, 0.0, float(ADC_CHANNELS - 1))
     return canvas / float(ADC_CHANNELS)
 
@@ -62,6 +76,10 @@ def simulate_real_event(
     rng: np.random.Generator,
     *,
     force_pileup: bool | None = None,
+    gap: int | None = None,
+    guest_scale: float = 1.0,
+    target_ratio: float | None = None,
+    extra_noise_ch: float = 0.0,
 ) -> SimulatedPulse:
     n = len(lib.snippets)
     if n < 2:
@@ -73,23 +91,34 @@ def simulate_real_event(
     if force_pileup is not None:
         is_pileup = force_pileup
     a2 = None
-    gap = 0
+    used_gap = 0
     guest = None
+    scale = float(guest_scale)
     if is_pileup:
         i_guest = int(rng.integers(0, n))
         while i_guest == i_host and n > 1:
             i_guest = int(rng.integers(0, n))
         guest = lib.snippets[i_guest]
-        gap = int(rng.integers(GAP_LOW, GAP_HIGH))
-        a2 = guest.amplitude_ch / float(ADC_CHANNELS)
-    wave = compose_waveform(host, t1=t1, guest=guest, gap=gap)
+        used_gap = int(gap) if gap is not None else int(rng.integers(GAP_LOW, GAP_HIGH))
+        if target_ratio is not None and guest.amplitude_ch > 1.0:
+            scale = float(target_ratio) * host.amplitude_ch / guest.amplitude_ch
+        a2 = guest.amplitude_ch * scale / float(ADC_CHANNELS)
+    wave = compose_waveform(
+        host,
+        t1=t1,
+        guest=guest,
+        gap=used_gap,
+        guest_scale=scale,
+        extra_noise_ch=extra_noise_ch,
+        rng=rng,
+    )
     return SimulatedPulse(
         waveform=wave,
         amplitude_first=host.amplitude_ch / float(ADC_CHANNELS),
         amplitude_second=a2,
         is_pileup=is_pileup,
         t_start=t1,
-        gap=gap,
+        gap=used_gap,
     )
 
 

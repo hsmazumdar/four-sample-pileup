@@ -189,12 +189,22 @@ by adding two isolated measured snippets** at a controlled delay. It is
 detector”, **not** piled-up energy recovery, **not** measured FPGA
 latency, and **not** HPGe/NaI physics.
 
-Operating-region maps (constructed pile-up, no Am-241) are in
+Operating-region maps from the historical V5 pulse-level split are in
 [RESULTS.md](RESULTS.md) and `python -m sparse_pileup.operating_region`.
-A complementary **OR** of the frozen 4–5–1 and a retrigger inspector
-recovers every constructed pair on the official mix (F1 1.000, 0 false
-positives). That is still not a measured high-rate F1. Still missing:
-Am-241 (or equivalent) pile-up F1.
+Those tables are kept as history. They are not the segment-held-out result.
+
+The segment-first protocol is [VALIDATION.md](VALIDATION.md):
+
+```bash
+python -m sparse_pileup.strict_validation --out artifacts/v6
+```
+
+It assigns whole recording buffers before extraction, fits templates on
+train buffers only, and chooses thresholds on the validation mix only.
+Conditional gap studies and unconditional Poisson streams are separate
+tables. The stream’s exponential arrivals are a labelled modelling
+assumption, not a measured high-rate run. The historical OR F1 of 1.000
+is not the number to quote from that protocol.
 
 ## License
 
