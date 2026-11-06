@@ -1,9 +1,14 @@
-"""V5 operating-region experiments on constructed Fe-55 pile-up.
+"""Historical V5 operating-region experiments on constructed Fe-55 pile-up.
 
     python -m sparse_pileup.operating_region
 
-Uses the held-out snippet library. Pile-up remains constructed (linear
-sum of two measured singles). Not a measured high-rate F1.
+Pulse-level 60/20/20 snippet split (not a segment split). The CR–RC^8
+template is the campaign-wide fit in ``config/sdd_shape.json``. The MLP
+threshold stays 0.5. The ``v5_poisson.csv`` column is a conditional
+two-pulse draw with an exponential gap, not an unconditional stream.
+
+The stricter protocol is ``python -m sparse_pileup.strict_validation``.
+Pile-up here remains constructed. Not a measured high-rate F1.
 """
 
 from __future__ import annotations

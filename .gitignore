@@ -23,9 +23,21 @@ Desktop.ini
 # Local Cursor notes (not for reviewers)
 _session/
 
-# Journal manuscript — keep off GitHub (publisher pre-publication policy)
+# Journal manuscript and coauthor correspondence — keep off GitHub
 ManuscriptDraft.docx
 ManuscriptDraft.docs
 ManuscriptDraftV2.docx
 ManuscriptDraft*.docx
 ~$*.docx
+*Comments*.docx
+
+# Acquisition archives and derived per-event waveforms.
+# The 61 text segments and isolated_fe55_snippets.npz already in this
+# repository stay as they are. Do not add the rar, new waveform dumps,
+# or per-event arrays.
+*.rar
+*.zip
+artifacts/private/
+**/*per_event*
+**/*_waveforms.npz
+**/*_waveforms.npy
