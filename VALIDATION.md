@@ -127,7 +127,20 @@ frozen from validation. Primary blocked-42, n = 1000, 96 pile-up:
 | Template residual | validation quantile | 0.857 | 0.562 | 0.679 | 0.805 | 9 |
 | Logistic, 4 taps | 0.51 | 1.000 | 0.448 | 0.619 | 0.784 | 0 |
 | Slope / second rise | hard | 1.000 | 0.010 | 0.021 | 0.505 | 0 |
-| MLP OR retrigger | pre-specified rule | 0.980 | 1.000 | 0.990 | — | 2 |
+| MLP OR retrigger | MLP at 0.11, or retrigger | 0.980 | 1.000 | 0.990 | — | 2 |
+
+The combined detector is positive when the 4–5–1 probability is at least
+that run’s validation threshold or the retrigger hard decision fires.
+For `blocked-42` the MLP leg is 0.11. The same pair of cuts is used for
+the prevalence mix, every conditional gap and ratio cell, the noise
+stress, and every stream rate. Stream thresholds are not reselected per
+rate. The `threshold` cell on `mlp_or_retrigger` rows remains 0.5 because
+that is the cut on a score that is already 0 or 1. It is not the MLP
+probability cut. `mlp_leg_threshold` stores the validation cut (0.11 on
+the primary run). Where retrigger recall is zero, OR recall equals the
+MLP at its validation threshold and does not equal the MLP at 0.5. On
+the primary A2/A1 = 0.25 cell at 0.4 µs those recalls are 0.975 and
+0.181.
 
 Wilson 95% CI, primary MLP recall 0.412–0.608, precision 0.927–1.000.
 OR recall 0.962–1.000. Six-run MLP F1 values: 0.676, 0.709, 0.658,

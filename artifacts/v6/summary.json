@@ -67,7 +67,7 @@
   "epochs_published_constant": 40,
   "code_sha256": {
     "sparse_pileup/segment_protocol.py": "1391d9e5ec6b21fe095b3dc0291917455c434f98a25ff9ecb308ebedc0416547",
-    "sparse_pileup/strict_validation.py": "d9e5590077486f15c128fcdc0604378d9f4277d62d56f3df29e3728ab93a6b71",
+    "sparse_pileup/strict_validation.py": "054af185c0ef602e01e5c8aeb3c6886a6f534230ebcc46dec56f554fa73e7c31",
     "sparse_pileup/real_superpose.py": "d1a3a667e61659bad25076079eb5ec1c41fcf1e45ce2b61fed2807b0668d1d08",
     "sparse_pileup/ls_peak.py": "21fe6b2dff0ecad58467de760a4a3b20d2bc18f31e78cf79271992e72aa30735",
     "sparse_pileup/operating_region.py": "e255ab503304a4c4dd3dc4a3274504b87785b29ccebf4967e9247696c74152ee",
@@ -1154,5 +1154,99 @@
     "strict_mae.png",
     "hard_cell_0.25_0.4us.png"
   ],
-  "aggregate_note": "aggregate.csv rebuilt from the sibling CSV tables after the run; detection and height rows were not recomputed."
+  "aggregate_note": "aggregate.csv rebuilt from the sibling CSV tables after the run; detection and height rows were not recomputed.",
+  "combined_detector_threshold": {
+    "rule": "positive if MLP probability >= validation threshold OR retrigger hard decision fires",
+    "stored_threshold_column_for_or": 0.5,
+    "stored_threshold_column_meaning": "cut on the already binary OR score, not the MLP probability cut",
+    "stream_thresholds_retuned_per_rate": false,
+    "metrics_rescored": false,
+    "hard_cell_0.4us_ratio_0.25": [
+      {
+        "run_id": "blocked-42",
+        "gap_us": 0.4,
+        "ratio": 0.25,
+        "mlp_validation_threshold": "0.11",
+        "mlp_recall": "0.975",
+        "mlp_at_0.5_recall": "0.18125",
+        "retrigger_recall": "0.0",
+        "or_recall": "0.975",
+        "or_matches_validation_mlp_recall": true,
+        "or_matches_mlp_at_0.5_recall": false,
+        "stored_or_threshold_column": "0.5",
+        "mlp_leg_threshold": "0.11"
+      },
+      {
+        "run_id": "blocked-43",
+        "gap_us": 0.4,
+        "ratio": 0.25,
+        "mlp_validation_threshold": "0.19",
+        "mlp_recall": "0.95",
+        "mlp_at_0.5_recall": "0.34375",
+        "retrigger_recall": "0.0",
+        "or_recall": "0.95",
+        "or_matches_validation_mlp_recall": true,
+        "or_matches_mlp_at_0.5_recall": false,
+        "stored_or_threshold_column": "0.5",
+        "mlp_leg_threshold": "0.19"
+      },
+      {
+        "run_id": "blocked-44",
+        "gap_us": 0.4,
+        "ratio": 0.25,
+        "mlp_validation_threshold": "0.15",
+        "mlp_recall": "0.925",
+        "mlp_at_0.5_recall": "0.175",
+        "retrigger_recall": "0.00625",
+        "or_recall": "0.925",
+        "or_matches_validation_mlp_recall": true,
+        "or_matches_mlp_at_0.5_recall": false,
+        "stored_or_threshold_column": "0.5",
+        "mlp_leg_threshold": "0.15"
+      },
+      {
+        "run_id": "random-42",
+        "gap_us": 0.4,
+        "ratio": 0.25,
+        "mlp_validation_threshold": "0.21",
+        "mlp_recall": "0.925",
+        "mlp_at_0.5_recall": "0.2375",
+        "retrigger_recall": "0.0",
+        "or_recall": "0.925",
+        "or_matches_validation_mlp_recall": true,
+        "or_matches_mlp_at_0.5_recall": false,
+        "stored_or_threshold_column": "0.5",
+        "mlp_leg_threshold": "0.21"
+      },
+      {
+        "run_id": "random-43",
+        "gap_us": 0.4,
+        "ratio": 0.25,
+        "mlp_validation_threshold": "0.21",
+        "mlp_recall": "0.94375",
+        "mlp_at_0.5_recall": "0.48125",
+        "retrigger_recall": "0.0",
+        "or_recall": "0.94375",
+        "or_matches_validation_mlp_recall": true,
+        "or_matches_mlp_at_0.5_recall": false,
+        "stored_or_threshold_column": "0.5",
+        "mlp_leg_threshold": "0.21"
+      },
+      {
+        "run_id": "random-44",
+        "gap_us": 0.4,
+        "ratio": 0.25,
+        "mlp_validation_threshold": "0.11",
+        "mlp_recall": "0.9625",
+        "mlp_at_0.5_recall": "0.31875",
+        "retrigger_recall": "0.0",
+        "or_recall": "0.9625",
+        "or_matches_validation_mlp_recall": true,
+        "or_matches_mlp_at_0.5_recall": false,
+        "stored_or_threshold_column": "0.5",
+        "mlp_leg_threshold": "0.11"
+      }
+    ]
+  },
+  "threshold_metadata_patched_without_rescoring": true
 }

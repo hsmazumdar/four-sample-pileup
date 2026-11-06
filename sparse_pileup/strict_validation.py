@@ -162,7 +162,53 @@ def _pack_scores(events: list[dict], net: SmallMLP, log_w: np.ndarray, est: LsPe
 
 
 def _or_scores(mlp: np.ndarray, retrigger: np.ndarray, mlp_thr: float) -> np.ndarray:
+    """Binary fusion. ``mlp_thr`` is the validation cut on the MLP probability.
+
+    The returned score is 0 or 1. A later cut of 0.5 on that score is only
+    the decision on an already binary value. It is not a second MLP threshold.
+    """
     return np.where((mlp >= mlp_thr) | (retrigger >= 0.5), 1.0, 0.0)
+
+
+def annotate_threshold_metadata(rows: list[dict], mlp_threshold_by_run: dict[str, str]) -> None:
+    """Name what the stored ``threshold`` cell means. Does not rescore."""
+    for row in rows:
+        method = str(row.get("method", ""))
+        run = str(row.get("run_id", ""))
+        mlp_thr = mlp_threshold_by_run.get(run, "")
+        if method == "mlp_or_retrigger":
+            row["mlp_leg_threshold"] = mlp_thr
+            row["retrigger_leg_threshold"] = "0.5"
+            row["threshold_column_meaning"] = "cut_on_binary_or_score"
+            row["threshold_source"] = "validation_mlp_OR_retrigger_hard"
+        elif method == "mlp":
+            row["mlp_leg_threshold"] = row.get("threshold", mlp_thr)
+            row["retrigger_leg_threshold"] = ""
+            row["threshold_column_meaning"] = "cut_on_mlp_probability"
+        elif method == "mlp@0.5":
+            row["mlp_leg_threshold"] = "0.5"
+            row["retrigger_leg_threshold"] = ""
+            row["threshold_column_meaning"] = "historical_fixed_0.5_cut_on_mlp_probability"
+        elif method == "retrigger":
+            row["mlp_leg_threshold"] = ""
+            row["retrigger_leg_threshold"] = "0.5"
+            row["threshold_column_meaning"] = "hard_retrigger_score"
+        elif method == "slope":
+            row["mlp_leg_threshold"] = ""
+            row["retrigger_leg_threshold"] = ""
+            row["threshold_column_meaning"] = "hard_slope_score"
+        elif str(method).startswith("logistic"):
+            row["mlp_leg_threshold"] = ""
+            row["retrigger_leg_threshold"] = ""
+            row["threshold_column_meaning"] = "cut_on_logistic_probability"
+        elif str(method).startswith("residual"):
+            row["mlp_leg_threshold"] = ""
+            row["retrigger_leg_threshold"] = ""
+            row["threshold_column_meaning"] = "cut_on_template_residual"
+        else:
+            row["mlp_leg_threshold"] = ""
+            row["retrigger_leg_threshold"] = ""
+            row["threshold_column_meaning"] = "cut_on_method_score"
 
 
 def _metric_row(run_id: str, method: str, scores: np.ndarray, y: np.ndarray, thr: float, **extra) -> dict:
@@ -972,6 +1018,11 @@ def main(argv: list[str] | None = None) -> None:
         }
         for r in run_summaries
     ])
+    mlp_by_run = {
+        r["run_id"]: f"{float(r['thresholds']['mlp']['selected']):.2f}" for r in run_summaries
+    }
+    for table in (prev_rows, gap_rows, ratio_rows, noise_rows, stream_rows, n8_rows):
+        annotate_threshold_metadata(table, mlp_by_run)
     _write_csv(out / "prevalence.csv", prev_rows)
     _write_csv(out / "mae.csv", mae_rows)
     _write_csv(out / "conditional_gap.csv", gap_rows)

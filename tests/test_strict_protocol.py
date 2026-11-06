@@ -113,6 +113,26 @@ class SynthesisTests(unittest.TestCase):
         self.assertAlmostEqual(float(canvas[104]), before + (900 - 7), delta=2.0)
 
 
+class OrThresholdTests(unittest.TestCase):
+    def test_binary_or_uses_validation_cut_not_a_second_mlp_threshold(self) -> None:
+        from sparse_pileup.metrics import roc_auc  # noqa: F401
+        from sparse_pileup.segment_protocol import prf_counts
+        from sparse_pileup.strict_validation import _or_scores
+
+        mlp = np.array([0.20, 0.80, 0.05, 0.40])
+        retrigger = np.array([0.0, 0.0, 1.0, 0.0])
+        fused = _or_scores(mlp, retrigger, 0.11)
+        # 0.20 is above 0.11 and below 0.5, retrigger is off: validation OR fires.
+        self.assertEqual(fused.tolist(), [1.0, 1.0, 1.0, 1.0])
+        labels = np.array([1, 1, 1, 0])
+        at_half = prf_counts(fused, labels, 0.5)
+        at_validation = prf_counts(fused, labels, 0.11)
+        self.assertEqual(at_half["tp"], at_validation["tp"])
+        self.assertEqual(at_half["fp"], at_validation["fp"])
+        raw_at_half = prf_counts(mlp, labels, 0.5)
+        self.assertNotEqual(raw_at_half["tp"], at_half["tp"])
+
+
 class AggregateTests(unittest.TestCase):
     def test_three_runs_produce_a_mean(self) -> None:
         from sparse_pileup.strict_validation import _aggregate
